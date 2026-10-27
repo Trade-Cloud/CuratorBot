@@ -1,0 +1,47 @@
+services:
+  beta_bot:
+    build: .
+    container_name: beta_bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-beta_bot}:${POSTGRES_PASSWORD:-beta_bot}@beta_bot_postgres:5432/${POSTGRES_DB:-beta_bot}
+      REDIS_URL: redis://beta_bot_redis:6379/0
+      MEDIA_DIR: /data/media
+    volumes:
+      - beta_bot_media:/data
+    depends_on:
+      beta_bot_postgres:
+        condition: service_healthy
+      beta_bot_redis:
+        condition: service_started
+
+  beta_bot_postgres:
+    image: postgres:16-alpine
+    container_name: beta_bot_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-beta_bot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-beta_bot}
+      POSTGRES_DB: ${POSTGRES_DB:-beta_bot}
+    volumes:
+      - beta_bot_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-beta_bot} -d ${POSTGRES_DB:-beta_bot}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # FSM (недозаполненные анкеты) переживает рестарт бота.
+  beta_bot_redis:
+    image: redis:7-alpine
+    container_name: beta_bot_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - beta_bot_redis:/data
+
+volumes:
+  beta_bot_pgdata:
+  beta_bot_media:
+  beta_bot_redis:

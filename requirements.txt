@@ -1,0 +1,5 @@
+aiogram[redis]==3.31.0
+SQLAlchemy[asyncio]==2.0.43
+asyncpg==0.32.0
+pydantic-settings==2.16.1
+tzdata==2026.5
