@@ -26,6 +26,7 @@ from ..services.moderation import (
     run_analyzers,
 )
 from ..services.notify import notify_admins
+from ..web.events import bus
 from ..utils.telegram import delete_later, thread_param, topic_of, truncate, user_html_from
 
 log = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ def build_router(settings: Settings, rules: ModerationRules) -> Router:
                 await message.delete()
                 result = "deleted"
                 await backup.mark_deleted(session, message.chat.id, message.message_id)
+                bus.publish({"type": "deleted", "chat_id": message.chat.id, "message_id": message.message_id})
             except TelegramAPIError as exc:
                 log.warning("cannot delete message %s: %s", message.message_id, exc)
 
@@ -87,6 +89,7 @@ def build_router(settings: Settings, rules: ModerationRules) -> Router:
             )
         )
         await session.flush()
+        bus.publish({"type": "violation", "user_id": user.id, "severity": "hard" if severity == Severity.HARD else "soft"})
 
         mention = user_html_from(user)
         if result == "deleted":

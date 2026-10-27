@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beta backup</title>
+<style>
+:root {
+  --bg: #0d0d0f;
+  --panel: #151518;
+  --panel-2: #1c1c21;
+  --line: #26262d;
+  --text: #e9e9ee;
+  --muted: #8a8a96;
+  --accent: #ff4d00;
+  --accent-soft: rgba(255, 77, 0, .14);
+  --ok: #2fbf71;
+  --warn: #e5a50a;
+  --bad: #ff4d4f;
+  --mono: ui-monospace, "Geist Mono", "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); display: flex; flex-direction: column; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+a { color: var(--accent); }
+
+header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.brand { font-family: Georgia, serif; font-style: italic; font-weight: 700; letter-spacing: .02em; }
+.brand b { color: var(--accent); font-style: normal; font-family: var(--mono); font-size: 12px; margin-left: 8px; font-weight: 500; }
+.live { display: flex; align-items: center; gap: 6px; font: 12px var(--mono); color: var(--muted); margin-left: auto; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+.live.on .dot { background: var(--ok); box-shadow: 0 0 0 0 rgba(47,191,113,.6); animation: pulse 2s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(47,191,113,0); } 100% { box-shadow: 0 0 0 0 rgba(47,191,113,0); } }
+
+.layout { flex: 1; display: flex; min-height: 0; }
+aside { width: 250px; flex-shrink: 0; border-right: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 10px 8px; }
+.nav-title { font: 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; padding: 12px 10px 6px; }
+.nav-item { display: flex; align-items: center; width: 100%; padding: 7px 10px; border-radius: 6px; text-align: left; gap: 8px; }
+.nav-item:hover { background: var(--panel-2); }
+.nav-item.active { background: var(--accent-soft); color: var(--accent); }
+.nav-item .count { margin-left: auto; font: 11px var(--mono); color: var(--muted); }
+.nav-item .badge-new { background: var(--accent); color: #fff; border-radius: 9px; padding: 0 6px; font: 11px var(--mono); }
+
+main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.toolbar h2 { margin: 0 8px 0 0; font-size: 15px; }
+input[type=search] { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 6px 10px; min-width: 240px; font: inherit; }
+input[type=search]:focus { outline: 1px solid var(--accent); }
+.chip { display: inline-flex; gap: 6px; align-items: center; background: var(--accent-soft); color: var(--accent); border-radius: 12px; padding: 2px 10px; font-size: 12px; }
+.chip button { color: var(--accent); }
+
+#feed { flex: 1; overflow-y: auto; padding: 8px 16px 24px; position: relative; }
+.more { display: block; margin: 8px auto 12px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; }
+.more:hover { color: var(--text); border-color: var(--muted); }
+.empty { color: var(--muted); text-align: center; padding: 40px 0; }
+
+.msg { display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; }
+.msg:hover { background: var(--panel); }
+.msg.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+.msg.deleted { opacity: .6; }
+.msg.deleted .text { text-decoration: line-through; text-decoration-color: var(--bad); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff; }
+.body { min-width: 0; flex: 1; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: 12px; color: var(--muted); }
+.meta .name { color: var(--text); font-weight: 600; font-size: 14px; cursor: pointer; }
+.meta .name:hover { color: var(--accent); }
+.tag { font: 10px var(--mono); padding: 1px 6px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); }
+.tag.staff { border-color: var(--accent); color: var(--accent); }
+.topic-label { font: 11px var(--mono); color: var(--accent); }
+.mono { font-family: var(--mono); }
+.edited { color: var(--warn); cursor: pointer; }
+.edited:hover { text-decoration: underline; }
+.del { color: var(--bad); }
+.text { white-space: pre-wrap; word-wrap: break-word; margin-top: 2px; }
+.reply, .fwd { border-left: 2px solid var(--accent); padding: 2px 8px; margin: 4px 0; font-size: 12px; color: var(--muted); background: var(--panel-2); border-radius: 0 6px 6px 0; }
+.reply b, .fwd b { color: var(--text); font-weight: 600; }
+.atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.atts img { max-width: 320px; max-height: 260px; border-radius: 6px; cursor: zoom-in; display: block; }
+.atts video { max-width: 360px; max-height: 280px; border-radius: 6px; }
+.atts img.sticker { max-width: 140px; background: none; }
+.file { display: inline-flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; text-decoration: none; color: var(--text); }
+.file.pending { color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; position: sticky; top: 0; background: var(--bg); }
+td.wrap { white-space: pre-wrap; max-width: 520px; }
+.sev-hard { color: var(--bad); } .sev-soft { color: var(--warn); }
+details summary { cursor: pointer; color: var(--accent); }
+.kv { display: grid; grid-template-columns: 170px 1fr; gap: 4px 12px; margin-top: 6px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; white-space: pre-wrap; }
+
+#jump { position: absolute; right: 24px; bottom: 20px; background: var(--accent); color: #fff; border-radius: 18px; padding: 8px 14px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.4); display: none; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.modal.open { display: flex; }
+.modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; max-width: 760px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 18px; }
+.modal img { max-width: 100%; max-height: 85vh; }
+.change { font-size: 12px; color: var(--warn); margin-top: 4px; cursor: pointer; }
+.change .was { color: var(--muted); text-decoration: line-through; }
+.edit-row { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; margin: 6px 0; font-size: 13px; }
+.edit-row .meta { margin-bottom: 4px; }
+.diff { display: grid; grid-template-columns: 52px 1fr; gap: 2px 10px; }
+.diff .lbl { color: var(--muted); font: 11px var(--mono); padding-top: 2px; }
+.diff .old { color: var(--muted); text-decoration: line-through; white-space: pre-wrap; }
+.diff .new { white-space: pre-wrap; }
+.ver { border-top: 1px solid var(--line); padding: 10px 0; }
+.ver .old { color: var(--muted); text-decoration: line-through; white-space: pre-wrap; }
+.ver .new { white-space: pre-wrap; }
+
+@media (max-width: 760px) {
+  aside { display: none; }
+  input[type=search] { min-width: 0; flex: 1; }
+  .atts img, .atts video { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">TRADECLOUD® <b>beta · backup</b></div>
+  <div class="live" id="live"><span class="dot"></span><span id="liveText">offline</span></div>
+</header>
+<div class="layout">
+  <aside>
+    <div class="nav-title">Лента</div>
+    <div id="topics"></div>
+    <div class="nav-title">Разделы</div>
+    <button class="nav-item" data-view="edits">✏️ Правки <span class="count" id="cntEdits"></span></button>
+    <button class="nav-item" data-view="reports">🐞 Репорты <span class="count" id="cntReports"></span></button>
+    <button class="nav-item" data-view="violations">🛡 Нарушения <span class="count" id="cntViolations"></span></button>
+    <button class="nav-item" data-view="users">👥 Участники</button>
+  </aside>
+  <main>
+    <div class="toolbar">
+      <h2 id="title">Все сообщения</h2>
+      <input type="search" id="search" placeholder="Поиск по тексту…">
+      <span id="filters"></span>
+    </div>
+    <div id="feed"></div>
+    <button id="jump">↓ новые</button>
+  </main>
+</div>
+<div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
+
+<script>
+const state = { view: "feed", thread: null, user: null, q: "", oldest: null, newest: null, pending: 0, topics: [] };
+const $ = (s) => document.querySelector(s);
+const feed = $("#feed");
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v);
+  }
+  for (const c of children.flat()) if (c != null && c !== false) node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return node;
+}
+async function api(path) {
+  const r = await fetch(path, { credentials: "same-origin" });
+  if (!r.ok) throw new Error(path + " → " + r.status);
+  return r.json();
+}
+const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+const fmtSize = (n) => !n ? "" : n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(0) + " KB" : (n / 1048576).toFixed(1) + " MB";
+const COLORS = ["#ff4d00", "#3b82f6", "#10b981", "#a855f7", "#ec4899", "#eab308", "#14b8a6", "#f97316", "#6366f1"];
+const colorFor = (id) => COLORS[Math.abs(Number(id || 0)) % COLORS.length];
+const STAFF = ["admin", "moder"];
+
+/* ---------------- topics / nav ---------------- */
+async function loadTopics() {
+  state.topics = await api("/api/topics");
+  renderTopics();
+}
+function renderTopics() {
+  const box = $("#topics");
+  box.replaceChildren();
+  const total = state.topics.reduce((s, t) => s + t.count, 0);
+  const item = (id, name, count) => el("button", {
+    class: "nav-item" + (state.view === "feed" && state.thread === id ? " active" : ""),
+    onclick: () => openFeed(id),
+  }, id === null ? "💬" : "#", " ", name, el("span", { class: "count" }, count));
+  box.append(item(null, "Все", total));
+  for (const t of state.topics) box.append(item(t.id, t.name, t.count));
+  document.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("active", state.view === b.dataset.view));
+}
+function bumpTopic(threadId) {
+  const t = state.topics.find((x) => x.id === threadId);
+  if (t) t.count++; else state.topics.push({ id: threadId, name: "Топик " + threadId, count: 1 });
+  renderTopics();
+}
+
+/* ---------------- feed ---------------- */
+function feedQuery(extra) {
+  const p = new URLSearchParams();
+  if (state.thread !== null) p.set("thread", state.thread);
+  if (state.user) p.set("user", state.user.id);
+  if (state.q) p.set("q", state.q);
+  for (const [k, v] of Object.entries(extra || {})) p.set(k, v);
+  return "/api/messages?" + p;
+}
+function matches(m) {
+  if (state.view !== "feed") return false;
+  if (state.thread !== null && m.thread_id !== state.thread) return false;
+  if (state.user && (!m.user || m.user.id !== state.user.id)) return false;
+  if (state.q && !(m.text || "").toLowerCase().includes(state.q.toLowerCase())) return false;
+  return true;
+}
+function renderFilters() {
+  const f = $("#filters");
+  f.replaceChildren();
+  if (state.user) f.append(el("span", { class: "chip" }, "👤 " + state.user.name, el("button", { onclick: () => { state.user = null; openFeed(state.thread); } }, "✕")));
+}
+async function openFeed(thread) {
+  state.view = "feed"; state.thread = thread; state.pending = 0;
+  const t = state.topics.find((x) => x.id === thread);
+  $("#title").textContent = thread === null ? "Все сообщения" : "# " + (t ? t.name : thread);
+  $("#search").style.display = "";
+  renderTopics(); renderFilters();
+  feed.replaceChildren(el("div", { class: "empty" }, "Загрузка…"));
+  const list = await api(feedQuery({ limit: 100 }));
+  feed.replaceChildren();
+  state.oldest = list.length ? list[0].pk : null;
+  state.newest = list.length ? list[list.length - 1].pk : state.newest;
+  if (list.length === 100) feed.append(moreButton());
+  if (!list.length) feed.append(el("div", { class: "empty", id: "emptyFeed" }, "Сообщений пока нет. Новые появятся здесь сами."));
+  for (const m of list) feed.append(renderMsg(m));
+  feed.scrollTop = feed.scrollHeight;
+  hideJump();
+}
+function moreButton() {
+  return el("button", { class: "more", id: "more", onclick: loadOlder }, "Загрузить раньше");
+}
+async function loadOlder() {
+  if (!state.oldest) return;
+  const list = await api(feedQuery({ before: state.oldest, limit: 100 }));
+  $("#more")?.remove();
+  const prevHeight = feed.scrollHeight;
+  const frag = document.createDocumentFragment();
+  if (list.length === 100) frag.append(moreButton());
+  for (const m of list) frag.append(renderMsg(m));
+  feed.prepend(frag);
+  if (list.length) state.oldest = list[0].pk;
+  feed.scrollTop = feed.scrollHeight - prevHeight;
+}
+
+function renderMsg(m) {
+  const u = m.user;
+  const name = u ? u.name : (m.sender_chat_id ? "Анонимный админ / канал" : "—");
+  const tag = m.sender_tag || (u && u.tag);
+  const node = el("div", { class: "msg" + (m.deleted_by_bot ? " deleted" : ""), id: "m" + m.pk, "data-mid": m.message_id },
+    el("div", { class: "avatar", style: "background:" + colorFor(u ? u.id : m.sender_chat_id) }, (name[0] || "?").toUpperCase()),
+    el("div", { class: "body" },
+      el("div", { class: "meta" },
+        el("span", { class: "name", title: u ? "id " + u.id : "", onclick: () => u && filterUser(u) }, name),
+        u && u.username ? el("span", {}, "@" + u.username) : null,
+        tag ? el("span", { class: "tag" + (STAFF.includes(tag.toLowerCase()) ? " staff" : "") }, tag) : null,
+        state.thread === null ? el("span", { class: "topic-label" }, "#" + m.topic) : null,
+        el("span", {}, fmtTime(m.date)),
+        el("span", { class: "mono" }, "#" + m.message_id),
+        m.edited ? el("span", { class: "edited", onclick: () => showVersions(m) }, "изменено ×" + m.edit_count) : null,
+        m.deleted_by_bot ? el("span", { class: "del" }, "удалено модерацией") : null,
+      ),
+      m.reply ? el("div", { class: "reply" }, "↩ ", el("b", {}, m.reply.user ? m.reply.user.name : "сообщение #" + m.reply.message_id), " ", m.quote || m.reply.text || "") : null,
+      m.forward ? el("div", { class: "fwd" }, "⤳ Переслано: ", el("b", {}, forwardName(m.forward))) : null,
+      m.text ? el("div", { class: "text" }, m.text) : (!m.attachments.length ? el("div", { class: "text", style: "color:var(--muted)" }, "[" + m.content_type + "]") : null),
+      m.attachments.length ? el("div", { class: "atts" }, m.attachments.map(renderAtt)) : null,
+      m.last_change ? renderChange(m) : null,
+    ),
+  );
+  return node;
+}
+function renderChange(m) {
+  const c = m.last_change;
+  const parts = [];
+  if (c.text_changed) parts.push("было: ", el("span", { class: "was" }, (c.old_text || "—").slice(0, 160)));
+  if (c.media_changed) parts.push(parts.length ? " · " : "", "🖼 медиа заменено");
+  if (!parts.length) parts.push("изменено без видимой разницы");
+  return el("div", { class: "change", title: "История правок", onclick: () => showVersions(m) }, "✏️ ", fmtTime(c.date), " — ", parts);
+}
+function diffBlock(v) {
+  const rows = [];
+  if (v.old !== v.new) rows.push(el("div", { class: "lbl" }, "было"), el("div", { class: "old" }, v.old ?? "—"), el("div", { class: "lbl" }, "стало"), el("div", { class: "new" }, v.new ?? "—"));
+  if (v.media_changed) rows.push(
+    el("div", { class: "lbl" }, "медиа"),
+    el("div", { class: "atts" }, v.old_attachments.length ? v.old_attachments.map(renderAtt) : "—", el("span", { style: "align-self:center" }, "→"), v.new_attachments.length ? v.new_attachments.map(renderAtt) : "убрано"));
+  if (!rows.length) rows.push(el("div", { class: "lbl" }, ""), el("div", { class: "new", style: "color:var(--muted)" }, "текст и медиа не изменились (правка форматирования или ссылок)"));
+  return el("div", { class: "diff" }, rows);
+}
+function renderEdit(v) {
+  const u = v.user;
+  return el("div", { class: "edit-row", id: "e" + v.id },
+    el("div", { class: "meta" },
+      "✏️ ", el("span", { class: "name", onclick: () => u && filterUser(u) }, u ? u.name : "—"),
+      u && u.username ? el("span", {}, "@" + u.username) : null,
+      el("span", {}, "изменил сообщение"), el("span", { class: "mono" }, "#" + v.message_id),
+      el("span", { class: "topic-label" }, "#" + v.topic), el("span", {}, fmtTime(v.date)),
+      el("span", { class: "mono" }, "правка " + v.version)),
+    diffBlock(v));
+}
+function forwardName(f) {
+  if (f.chat) return f.chat.title || f.chat.username || f.chat.id;
+  if (f.sender_user) return [f.sender_user.first_name, f.sender_user.last_name].filter(Boolean).join(" ");
+  if (f.sender_user_name) return f.sender_user_name;
+  if (f.sender_chat) return f.sender_chat.title || f.sender_chat.id;
+  return f.type || "?";
+}
+function renderAtt(a) {
+  if (!a.url) return el("span", { class: "file pending" }, "📎 ", a.file_name || a.kind, " · ", a.status === "too_big" ? "больше 20 МБ, не скачан" : a.status === "failed" ? "ошибка скачивания" : "скачивается…");
+  const mime = a.mime_type || "";
+  if (a.kind === "photo" || (a.kind === "sticker" && !mime.includes("tgsticker") && !mime.startsWith("video/")) || mime.startsWith("image/"))
+    return el("img", { src: a.url, loading: "lazy", class: a.kind === "sticker" ? "sticker" : "", onclick: () => showImage(a.url) });
+  if (["video", "animation", "video_note"].includes(a.kind) || mime.startsWith("video/"))
+    return el("video", { src: a.url, controls: true, preload: "metadata", muted: a.kind === "animation", loop: a.kind === "animation" });
+  if (["voice", "audio"].includes(a.kind) || mime.startsWith("audio/"))
+    return el("audio", { src: a.url, controls: true, preload: "none" });
+  return el("a", { class: "file", href: a.url, target: "_blank" }, "📄 ", a.file_name || a.kind, " ", el("span", { style: "color:var(--muted)" }, fmtSize(a.size)));
+}
+function filterUser(u) { state.user = u; openFeed(state.thread); }
+
+async function showVersions(m) {
+  const list = await api(`/api/messages/${m.pk}/versions`);
+  openModal(el("div", {}, el("h3", { style: "margin-top:0" }, "История правок #" + m.message_id),
+    list.length ? list.map((v) => el("div", { class: "ver" },
+      el("div", { class: "meta", style: "margin-bottom:6px" }, "Правка " + v.version + " · " + fmtTime(v.date)),
+      diffBlock(v))) : el("div", { class: "empty" }, "Правок нет")));
+}
+function showImage(url) { openModal(el("img", { src: url })); }
+function openModal(content) { $("#modalBox").replaceChildren(content); $("#modal").classList.add("open"); }
+$("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") e.currentTarget.classList.remove("open"); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#modal").classList.remove("open"); });
+
+/* ---------------- other views ---------------- */
+async function openView(view) {
+  state.view = view;
+  renderTopics(); $("#filters").replaceChildren(); $("#search").style.display = "none"; hideJump();
+  const titles = { edits: "Правки сообщений", reports: "Репорты", violations: "Нарушения модерации", users: "Участники" };
+  $("#title").textContent = titles[view];
+  const data = await api("/api/" + view);
+  if (state.view !== view) return;
+  feed.replaceChildren(view === "edits" ? editsList(data) : view === "reports" ? reportsTable(data) : view === "violations" ? violationsTable(data) : usersTable(data));
+  feed.scrollTop = 0;
+}
+function editsList(rows) {
+  $("#cntEdits").textContent = rows.length || "";
+  if (!rows.length) return el("div", { class: "empty", id: "emptyEdits" }, "Правок пока нет. Новые появятся здесь сами.");
+  return el("div", { id: "editsBox" }, rows.map(renderEdit));
+}
+const FIELD_NAMES = { summary: "Аннотация (ИИ)", description: "Описание", steps: "Шаги", actual: "Факт", expected: "Ожидание", environment: "Окружение", logs: "Логи", idea: "Идея", problem: "Проблема", implementation: "Реализация" };
+function reportsTable(rows) {
+  $("#cntReports").textContent = rows.length || "";
+  if (!rows.length) return el("div", { class: "empty" }, "Репортов пока нет");
+  return el("table", {}, el("tr", {}, ["ID", "Тип", "Статус", "Автор", "Создан", "Содержимое"].map((h) => el("th", {}, h))),
+    rows.map((r) => el("tr", {},
+      el("td", { class: "mono" }, "#" + r.id), el("td", {}, r.kind === "bug" ? "🐞 баг" : "💡 идея"),
+      el("td", {}, r.status, r.status_comment ? el("div", { style: "color:var(--muted)" }, r.status_comment) : null),
+      el("td", {}, r.user.name, r.user.username ? el("div", { style: "color:var(--muted)" }, "@" + r.user.username) : null),
+      el("td", {}, fmtTime(r.created)),
+      el("td", {}, el("details", {}, el("summary", {}, (r.fields.summary || r.fields.description || r.fields.idea || "").slice(0, 120)),
+        el("dl", { class: "kv" }, Object.entries(r.fields).flatMap(([k, v]) => [el("dt", {}, FIELD_NAMES[k] || k), el("dd", {}, Array.isArray(v) ? v.join("\n---\n") : String(v))])))))));
+}
+function violationsTable(rows) {
+  $("#cntViolations").textContent = rows.length || "";
+  if (!rows.length) return el("div", { class: "empty" }, "Нарушений нет");
+  return el("table", {}, el("tr", {}, ["Когда", "Кто", "Уровень", "Действие", "Найдено", "Текст"].map((h) => el("th", {}, h))),
+    rows.map((v) => el("tr", {},
+      el("td", {}, fmtTime(v.created)), el("td", {}, v.user ? v.user.name : "—", v.user && v.user.username ? el("div", { style: "color:var(--muted)" }, "@" + v.user.username) : null),
+      el("td", { class: "sev-" + v.severity }, v.severity), el("td", {}, v.action),
+      el("td", { class: "mono", style: "font-size:12px" }, (v.findings || []).map((f) => el("div", {}, f.kind + ": " + f.match))),
+      el("td", { class: "wrap" }, v.text || ""))));
+}
+function usersTable(rows) {
+  if (!rows.length) return el("div", { class: "empty" }, "Пока никого");
+  return el("table", {}, el("tr", {}, ["Участник", "Тег", "Сообщений", "Впервые", "Последний раз"].map((h) => el("th", {}, h))),
+    rows.map((u) => el("tr", {},
+      el("td", {}, el("span", { class: "name", style: "cursor:pointer;color:var(--accent)", onclick: () => filterUser(u) }, u.name),
+        el("div", { style: "color:var(--muted)" }, (u.username ? "@" + u.username + " · " : "") + "id " + u.id)),
+      el("td", {}, u.tag ? el("span", { class: "tag" + (STAFF.includes(u.tag.toLowerCase()) ? " staff" : "") }, u.tag) : ""),
+      el("td", { class: "mono" }, u.messages), el("td", {}, fmtTime(u.first_seen)), el("td", {}, fmtTime(u.last_seen)))));
+}
+document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => openView(b.dataset.view)));
+
+/* ---------------- search ---------------- */
+let searchTimer;
+$("#search").addEventListener("input", (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.q = e.target.value.trim(); openFeed(state.thread); }, 300);
+});
+
+/* ---------------- live ---------------- */
+const nearBottom = () => feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+function hideJump() { state.pending = 0; $("#jump").style.display = "none"; }
+$("#jump").addEventListener("click", () => { feed.scrollTop = feed.scrollHeight; hideJump(); });
+feed.addEventListener("scroll", () => { if (nearBottom()) hideJump(); });
+
+function appendLive(m) {
+  if (document.getElementById("m" + m.pk)) return;
+  $("#emptyFeed")?.remove();
+  const stick = nearBottom();
+  const node = renderMsg(m);
+  node.classList.add("flash");
+  feed.append(node);
+  state.newest = Math.max(state.newest || 0, m.pk);
+  if (stick) feed.scrollTop = feed.scrollHeight;
+  else { state.pending++; $("#jump").textContent = "↓ новые: " + state.pending; $("#jump").style.display = "block"; }
+}
+function replaceLive(m) {
+  const old = document.getElementById("m" + m.pk);
+  if (!old) return;
+  const node = renderMsg(m);
+  node.classList.add("flash");
+  old.replaceWith(node);
+}
+
+function connect() {
+  const es = new EventSource("/api/stream");
+  const live = $("#live");
+  es.onopen = async () => {
+    live.classList.add("on"); $("#liveText").textContent = "live";
+    // После обрыва догружаем то, что пропустили.
+    if (state.view === "feed" && state.newest) {
+      try { for (const m of await api(feedQuery({ after: state.newest, limit: 500 }))) appendLive(m); } catch (e) {}
+    }
+  };
+  es.onerror = () => { live.classList.remove("on"); $("#liveText").textContent = "переподключение…"; };
+  es.addEventListener("message", (e) => {
+    const m = JSON.parse(e.data).message;
+    bumpTopic(m.thread_id);
+    if (matches(m)) appendLive(m);
+  });
+  es.addEventListener("edit", (e) => {
+    const d = JSON.parse(e.data);
+    const m = d.message, v = d.version;
+    const cnt = $("#cntEdits"); cnt.textContent = (Number(cnt.textContent) || 0) + 1;
+    if (document.getElementById("m" + m.pk)) replaceLive(m);
+    else if (v && matches(m)) {
+      // Правят сообщение, которого нет на экране, — показываем правку отдельной строкой в ленте.
+      $("#emptyFeed")?.remove();
+      const stick = nearBottom();
+      const row = renderEdit(v); row.classList.add("flash"); feed.append(row);
+      if (stick) feed.scrollTop = feed.scrollHeight;
+    }
+    if (state.view === "edits" && v) {
+      $("#emptyEdits")?.remove();
+      let box = $("#editsBox");
+      if (!box) { box = el("div", { id: "editsBox" }); feed.append(box); }
+      const row = renderEdit(v); row.classList.add("flash"); box.prepend(row);
+    }
+  });
+  es.addEventListener("attachment", (e) => replaceLive(JSON.parse(e.data).message));
+  es.addEventListener("deleted", (e) => {
+    const d = JSON.parse(e.data);
+    const node = document.querySelector(`[data-mid="${d.message_id}"]`);
+    if (node) { node.classList.add("deleted", "flash"); node.querySelector(".meta").append(el("span", { class: "del" }, "удалено модерацией")); }
+  });
+  for (const type of ["report", "violation"]) {
+    es.addEventListener(type, () => {
+      const view = type + "s";
+      if (state.view === view) setTimeout(() => openView(view), 800); // даём транзакции закоммититься
+    });
+  }
+}
+
+loadTopics().then(() => openFeed(null));
+api("/api/edits").then((r) => $("#cntEdits").textContent = r.length || "");
+api("/api/reports").then((r) => $("#cntReports").textContent = r.length || "");
+api("/api/violations").then((r) => $("#cntViolations").textContent = r.length || "");
+connect();
+</script>
+</body>
+</html>

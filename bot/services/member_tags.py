@@ -37,8 +37,11 @@ class MemberTagResolver:
     async def get(self, bot: Bot, chat_id: int, user_id: int) -> MemberInfo | None:
         key = (chat_id, user_id)
         cached = self._cache.get(key)
-        if cached and time.monotonic() - cached[0] < self.ttl:
-            return cached[1]
+        if cached:
+            # Не участников кешируем коротко: человек мог только что вступить.
+            ttl = self.ttl if cached[1].status not in (ChatMemberStatus.LEFT, ChatMemberStatus.KICKED) else 30
+            if time.monotonic() - cached[0] < ttl:
+                return cached[1]
         try:
             member = await bot.get_chat_member(chat_id, user_id)
         except TelegramAPIError as exc:

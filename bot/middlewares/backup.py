@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..services import backup
 from ..services.media import MediaDownloader
+from ..web.events import bus
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class BackupMiddleware(BaseMiddleware):
     async def _save(self, update: Update) -> None:
         att_ids: list[int] = []
         subdir = "chat/misc"
+        event: dict | None = None
         async with self.sessionmaker() as session:
             await backup.save_raw_update(session, update)
             message = update.message or update.edited_message
@@ -46,13 +48,21 @@ class BackupMiddleware(BaseMiddleware):
                 subdir = f"chat/{message.date:%Y-%m}"
                 if message.from_user:
                     await backup.upsert_user(session, message.from_user, message.sender_tag)
+                event = {
+                    "type": "message" if update.message else "edit",
+                    "chat_id": message.chat.id,
+                    "message_id": message.message_id,
+                }
                 if update.message:
                     att_ids = await backup.save_message(session, message)
                     await backup.save_topic_event(session, message)
                 else:
-                    att_ids = await backup.save_edit(session, message)
+                    att_ids, version_id = await backup.save_edit(session, message)
+                    event["version_id"] = version_id
             elif update.chat_member and update.chat_member.new_chat_member:
                 await backup.upsert_user(session, update.chat_member.new_chat_member.user)
             await session.commit()
+        if event:
+            bus.publish(event)
         if att_ids:
             self.media.schedule(att_ids, subdir=subdir)

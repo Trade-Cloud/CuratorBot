@@ -19,11 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import keyboards, texts
 from ..config import Settings
 from ..services import reports
-from ..services.llm import Summarizer
+from ..services.llm import LLMSummarizer, Summarizer
 from ..services.media import FileRef, MediaDownloader, extract_files
 from ..services.member_tags import MemberTagResolver
 from ..services.notify import notify_admins
 from ..states import BugForm, FeatureForm
+from ..web.events import bus
 from ..utils.telegram import KeyedLock, split_html_lines, user_html_from
 
 log = logging.getLogger(__name__)
@@ -238,6 +239,14 @@ async def _show_preview(message: Message, state: FSMContext, data: dict) -> None
     await message.answer(chunks[-1], reply_markup=keyboards.confirm_kb())
 
 
+async def _drop(message: Message | None) -> None:
+    if message is not None:
+        try:
+            await message.delete()
+        except TelegramAPIError:
+            pass
+
+
 @router.callback_query(
     StateFilter(BugForm.confirm, FeatureForm.confirm), keyboards.FlowCb.filter(F.action == "submit")
 )
@@ -257,6 +266,8 @@ async def submit(
             await callback.answer()
             return
         await state.clear()  # повторное нажатие «Отправить» уже ничего не сделает
+    # Отвечаем сразу: публикация с LLM-аннотацией может занять секунды, а callback протухает.
+    await callback.answer("Публикую…")
 
     kind = data["kind"]
     started = datetime.fromisoformat(data["started_at"]) if data.get("started_at") else None
@@ -264,6 +275,10 @@ async def submit(
     report, att_ids = await reports.create_report(
         session, kind=kind, user=user, fields=data.get("fields", {}), started_at=started, files=files
     )
+    # Аннотация бага через LLM может идти несколько секунд — предупреждаем автора.
+    progress: Message | None = None
+    if kind == reports.KIND_BUG and isinstance(summarizer, LLMSummarizer):
+        progress = await bot.send_message(user.id, texts.LLM_PROCESSING.format(seconds=int(settings.llm_timeout)))
     try:
         await reports.publish(bot, report, settings, summarizer)
     except TelegramAPIError as exc:
@@ -271,12 +286,14 @@ async def submit(
         await session.rollback()
         await state.set_state(BugForm.confirm if kind == reports.KIND_BUG else FeatureForm.confirm)
         await state.set_data(data)
-        await callback.answer(f"Не получилось опубликовать: {exc.message}", show_alert=True)
+        await bot.send_message(user.id, f"Не получилось опубликовать: {escape(exc.message)}. Попробуй «Отправить» ещё раз.")
+        await _drop(progress)
         return
     await session.commit()
+    bus.publish({"type": "report", "id": report.public_id, "kind": kind})
     media.schedule(att_ids, subdir=f"reports/{report.public_id}")
+    await _drop(progress)
 
-    await callback.answer()
     link = reports.report_post_link(report) or ""
     template = texts.SENT_BUG if kind == reports.KIND_BUG else texts.SENT_FEATURE
     if isinstance(callback.message, Message):
@@ -284,7 +301,7 @@ async def submit(
         await callback.message.answer(template.format(rid=report.public_id, link=link))
 
     title = "🐞 Новый баг" if kind == reports.KIND_BUG else "💡 Новое предложение"
-    summary = escape(str(report.fields.get("description") or report.fields.get("idea") or ""))[:300]
+    summary = escape(str(report.fields.get("summary") or report.fields.get("idea") or ""))[:300]
     await notify_admins(
         bot,
         settings,

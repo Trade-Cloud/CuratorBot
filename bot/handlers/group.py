@@ -9,7 +9,7 @@ from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, ChatMemberUpdated, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import keyboards, texts
@@ -80,6 +80,11 @@ def build_router(settings: Settings) -> Router:
             texts.GROUP_GO_TO_PM.format(user=mention),
             keyboards.url_kb(texts.GROUP_OPEN_PM_BUTTON, f"https://t.me/{bot_username}"),
         )
+
+    @router.chat_member(F.chat.id == settings.chat_id)
+    async def member_changed(event: ChatMemberUpdated, tags: MemberTagResolver) -> None:
+        # Вступил/вышел/сменил тег — сбрасываем кеш, чтобы доступ в ЛС и исключения модерации обновились сразу.
+        tags.invalidate(event.chat.id, event.new_chat_member.user.id)
 
     @router.message(Command("topic_id"))
     async def topic_id(message: Message) -> None:

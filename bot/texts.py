@@ -45,6 +45,7 @@ CHANGELOG_ASK_VERSION = "📝 <b>Changelog</b>\n\nВерсия релиза (н�
 CHANGELOG_ASK_TEXT = "Текст изменений. Форматирование Telegram сохранится."
 
 PREVIEW_HEADER = "Проверь перед отправкой:"
+LLM_PROCESSING = "⏳ Обрабатываю баг-репорт через ИИ-модель — готовлю короткое описание для поста. Это может занять до {seconds} секунд, подожди немного…"
 SENT_BUG = "✅ Баг <code>#{rid}</code> отправлен. Спасибо!\n{link}"
 SENT_FEATURE = "✅ Предложение <code>#{rid}</code> опубликовано. Спасибо!\n{link}"
 SENT_CHANGELOG = "✅ Changelog опубликован.\n{link}"
@@ -65,6 +66,13 @@ DETAILS_BUTTON = "Подробнее"
 DETAILS_DENIED = "Вам это не доступно"
 REPORT_NOT_FOUND = "Репорт не найден."
 
+NO_ACCESS = (
+    "Этот бот работает только для участников бета-теста TradeCloud.\n\n"
+    "Запросить доступ к бете можно в @{bot}."
+)
+NO_ACCESS_SHORT = "Доступно только участникам бета-теста"
+NO_ACCESS_BUTTON = "Запросить доступ"
+
 START_TEXT = (
     "Привет! Я бот бета-чата TradeCloud.\n\n"
     "/bug_report — сообщить о баге\n"
@@ -76,7 +84,9 @@ ADMIN_HELP = (
     "/changelog — опубликовать changelog\n"
     "/status ID статус [комментарий] — сменить статус репорта\n"
     "/report ID — открыть репорт\n"
-    "/topic_id — (в чате) показать ID топика"
+    "/topic_id — (в чате) показать ID топика\n"
+    "/scan_topics [макс_id] — найти все топики и запостить в каждый его ID\n"
+    "/test_topics — тестовый пост во все топики из .env"
 )
 
 MOD_WARNING = "{user}, сообщение удалено: в чате нельзя обмениваться контактами и зазывать в другие места."

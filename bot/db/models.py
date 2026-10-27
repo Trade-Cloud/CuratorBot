@@ -21,6 +21,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 JsonType = JSON().with_variant(JSONB(), "postgresql")
 
 
+# В SQLite (тесты) автоинкремент работает только у INTEGER PRIMARY KEY, в Postgres остаётся BIGINT.
+BigIntPK = BigInteger().with_variant(Integer(), "sqlite")
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -73,7 +77,7 @@ class RawUpdate(TimestampMixin, Base):
 
     __tablename__ = "raw_updates"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
     update_id: Mapped[int] = mapped_column(BigInteger, index=True)
     event_type: Mapped[str] = mapped_column(String(64))
     chat_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
@@ -84,7 +88,7 @@ class ChatMessage(Base):
     __tablename__ = "messages"
     __table_args__ = (UniqueConstraint("chat_id", "message_id"),)
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
     chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
     message_id: Mapped[int] = mapped_column(BigInteger)
     thread_id: Mapped[int] = mapped_column(BigInteger, index=True)  # 0 = General
@@ -120,13 +124,18 @@ class MessageVersion(Base):
 
     __tablename__ = "message_versions"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
     message_pk: Mapped[int] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"), index=True)
     version: Mapped[int] = mapped_column(Integer)
     old_text: Mapped[str | None] = mapped_column(Text)
     new_text: Mapped[str | None] = mapped_column(Text)
     old_entities: Mapped[list[Any] | None]
     new_entities: Mapped[list[Any] | None]
+    # Замена медиа правкой: тип сообщения и id вложений (attachments.id) до и после.
+    old_content_type: Mapped[str | None] = mapped_column(String(32))
+    new_content_type: Mapped[str | None] = mapped_column(String(32))
+    old_attachments: Mapped[list[Any] | None]
+    new_attachments: Mapped[list[Any] | None]
     edit_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw: Mapped[dict[str, Any]]
     saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
@@ -139,7 +148,7 @@ class Attachment(TimestampMixin, Base):
 
     __tablename__ = "attachments"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
     message_pk: Mapped[int | None] = mapped_column(
         ForeignKey("messages.id", ondelete="CASCADE"), index=True
     )
@@ -153,6 +162,8 @@ class Attachment(TimestampMixin, Base):
     local_path: Mapped[str | None] = mapped_column(String(1024))
     # pending | done | too_big | failed
     status: Mapped[str] = mapped_column(String(16), default="pending")
+    # Файл заменили правкой сообщения — в истории есть, в текущем виде сообщения нет.
+    replaced_by_edit: Mapped[bool | None] = mapped_column(Boolean, default=False)
     error: Mapped[str | None] = mapped_column(Text)
 
 
@@ -199,7 +210,7 @@ class ChangelogEntry(TimestampMixin, Base):
 class Violation(TimestampMixin, Base):
     __tablename__ = "violations"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
     chat_id: Mapped[int] = mapped_column(BigInteger)
     thread_id: Mapped[int] = mapped_column(BigInteger)
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)

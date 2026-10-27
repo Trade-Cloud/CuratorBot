@@ -106,6 +106,12 @@ async def save_topic_event(session: AsyncSession, message: Message) -> None:
         row.name = edited.name
 
 
+def _as_datetime(value: Any) -> datetime | None:
+    if value is None or isinstance(value, datetime):
+        return value
+    return datetime.fromtimestamp(int(value), tz=timezone.utc)
+
+
 def _reply_chat_id(message: Message) -> int | None:
     if message.reply_to_message:
         return message.reply_to_message.chat.id
@@ -143,8 +149,9 @@ async def save_message(session: AsyncSession, message: Message) -> list[int]:
     return await _add_attachments(session, message, row.id)
 
 
-async def save_edit(session: AsyncSession, message: Message) -> list[int]:
-    """Правка: пишем версию со старым и новым текстом, обновляем текущий текст."""
+async def save_edit(session: AsyncSession, message: Message) -> tuple[list[int], int | None]:
+    """Правка: пишем версию (старый/новый текст и старые/новые вложения), обновляем текущее состояние.
+    Возвращает (id вложений для скачивания, id версии)."""
     row = (
         await session.execute(
             select(ChatMessage).where(
@@ -155,33 +162,56 @@ async def save_edit(session: AsyncSession, message: Message) -> list[int]:
     if row is None:
         # Сообщение было до запуска бота — сохраняем как есть, старого текста у нас нет.
         att_ids = await save_message(session, message)
-        row = (
+        return att_ids, None
+
+    current = list(
+        (
             await session.execute(
-                select(ChatMessage).where(
-                    ChatMessage.chat_id == message.chat.id, ChatMessage.message_id == message.message_id
+                select(Attachment).where(
+                    Attachment.message_pk == row.id, Attachment.replaced_by_edit.is_not(True)
                 )
             )
-        ).scalar_one()
-    else:
-        att_ids = []
+        ).scalars()
+    )
+    refs = extract_files(message)
+    new_unique = {r.file_unique_id for r in refs}
+    old_ids = [a.id for a in current]
+
+    # Медиа заменили (или убрали) — старые вложения помечаем, новые добавляем.
+    new_rows = []
+    if refs and new_unique != {a.file_unique_id for a in current}:
+        for att in current:
+            if att.file_unique_id not in new_unique:
+                att.replaced_by_edit = True
+        known = {a.file_unique_id for a in current}
+        new_rows = [attachment_from_ref(ref, message_pk=row.id) for ref in refs if ref.file_unique_id not in known]
+        session.add_all(new_rows)
+        await session.flush()
+    new_ids = [a.id for a in current if a.file_unique_id in new_unique] + [a.id for a in new_rows]
+    if not refs:
+        new_ids = []
 
     text, html_text, entities = message_text(message)
     last_version = await session.scalar(
         select(func.coalesce(func.max(MessageVersion.version), 0)).where(MessageVersion.message_pk == row.id)
     )
-    edit_date = message.edit_date
-    session.add(
-        MessageVersion(
-            message_pk=row.id,
-            version=(last_version or 0) + 1,
-            old_text=row.text,
-            new_text=text,
-            old_entities=row.entities,
-            new_entities=entities,
-            edit_date=edit_date,
-            raw=dump(message),
-        )
+    # В aiogram edit_date — unix-время (int), а не datetime, как date.
+    edit_date = _as_datetime(message.edit_date)
+    version = MessageVersion(
+        message_pk=row.id,
+        version=(last_version or 0) + 1,
+        old_text=row.text,
+        new_text=text,
+        old_entities=row.entities,
+        new_entities=entities,
+        old_content_type=row.content_type,
+        new_content_type=message.content_type,
+        old_attachments=old_ids,
+        new_attachments=new_ids,
+        edit_date=edit_date,
+        raw=dump(message),
     )
+    session.add(version)
     row.text = text
     row.html_text = html_text
     row.entities = entities
@@ -190,11 +220,8 @@ async def save_edit(session: AsyncSession, message: Message) -> list[int]:
     row.edit_count = (row.edit_count or 0) + 1
     row.last_edit_date = edit_date
     row.raw = dump(message)
-
-    # Правкой могут заменить медиа — сохраняем новый файл, если его ещё не было.
-    if not att_ids:
-        att_ids = await _add_attachments(session, message, row.id, skip_known=True)
-    return att_ids
+    await session.flush()
+    return [a.id for a in new_rows], version.id
 
 
 async def mark_deleted(session: AsyncSession, chat_id: int, message_id: int) -> None:

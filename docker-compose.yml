@@ -8,6 +8,12 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-beta_bot}:${POSTGRES_PASSWORD:-beta_bot}@beta_bot_postgres:5432/${POSTGRES_DB:-beta_bot}
       REDIS_URL: redis://beta_bot_redis:6379/0
       MEDIA_DIR: /data/media
+    # Веб-просмотр бекапа: http://127.0.0.1:8090 (снаружи не виден).
+    ports:
+      - "127.0.0.1:${WEB_PUBLISH_PORT:-8090}:8080"
+    # На сервере LLM (llm-qwen) опубликована на хосте :8301 — достаём её через host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - beta_bot_media:/data
     depends_on:
@@ -24,6 +30,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-beta_bot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-beta_bot}
       POSTGRES_DB: ${POSTGRES_DB:-beta_bot}
+    # Только localhost — чтобы гонять бота с хоста (python -m bot) при локальной отладке.
+    ports:
+      - "127.0.0.1:55432:5432"
     volumes:
       - beta_bot_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -38,6 +47,8 @@ services:
     container_name: beta_bot_redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:56379:6379"
     volumes:
       - beta_bot_redis:/data
 

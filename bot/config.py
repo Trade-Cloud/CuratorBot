@@ -74,16 +74,35 @@ class Settings(BaseSettings):
     moderation_mute_minutes: int = 60
     moderation_warning_ttl: int = 20
 
+    # Куда отправлять тех, кого нет в бета-чате (там запрашивают доступ к бете).
+    access_bot_username: str = "trade_cloud_bot"
+
     # --- Репорты ---
     bug_attachments_required: bool = True
     require_membership: bool = True
     delete_group_commands: bool = True
     group_reply_ttl: int = 15
 
-    # --- Локальная LLM (зарезервировано, пока не используется) ---
-    llm_enabled: bool = False
+    # --- Веб-просмотр бекапа ---
+    web_enabled: bool = True
+    web_host: str = "0.0.0.0"
+    web_port: int = 8080
+    web_user: str = "admin"
+    # Пусто = без пароля (порт в compose открыт только на 127.0.0.1).
+    web_password: SecretStr | None = None
+
+    # --- Локальная LLM (llama-server, OpenAI-совместимый API) ---
+    llm_enabled: bool = True
+    # Явный адрес (http://host:port). Пусто = автоопределение, см. services/llm.py.
     llm_base_url: str | None = None
+    # Сервер в LAN — для запуска с Мака.
+    llm_server_host: str = "192.168.1.145"
+    llm_port: int = 8301
+    # llama-server отвечает той моделью, что загружена; имя нужно только если сервер их различает.
     llm_model: str | None = None
+    llm_api_key: SecretStr | None = None
+    llm_timeout: float = 20.0
+    bug_summary_chars: int = 220
 
     @property
     def admin_ids(self) -> set[int]:

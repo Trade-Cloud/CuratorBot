@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..db.models import Attachment
 from ..utils.telegram import spawn
+from ..web.events import bus
 
 log = logging.getLogger(__name__)
 
@@ -125,5 +126,7 @@ class MediaDownloader:
                     att.status = "done"
                     att.local_path = str(path)
                 await session.commit()
+                if att.message_pk:
+                    bus.publish({"type": "attachment", "message_pk": att.message_pk, "status": att.status})
                 if att.status != "done":
                     log.warning("attachment %s not downloaded: %s %s", att_id, att.status, att.error)

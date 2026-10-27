@@ -50,7 +50,6 @@ FIELD_LIMITS: dict[str, int] = {
     "problem": 1200,
     "implementation": 1500,
 }
-BUG_SUMMARY_LIMIT = 300
 
 BUG_FIELDS = (
     ("description", "Описание"),
@@ -153,7 +152,11 @@ def _created_line(report: Report, settings: Settings) -> str:
 
 
 async def bug_post_text(report: Report, settings: Settings, summarizer: Summarizer) -> str:
-    summary = await summarizer.summarize(str(report.fields.get("description", "")), BUG_SUMMARY_LIMIT)
+    # Аннотацию считаем один раз при публикации и храним — смена статуса не должна заново дёргать LLM.
+    summary = report.fields.get("summary")
+    if not summary:
+        summary = await summarizer.summarize_bug(report.fields, settings.bug_summary_chars)
+        report.fields = {**report.fields, "summary": summary}
     return (
         f"🐞 <b>Баг</b> <code>#{report.public_id}</code> · {status_label(report.status)}\n\n"
         f"{escape(summary)}\n\n"

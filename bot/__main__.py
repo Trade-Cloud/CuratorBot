@@ -11,16 +11,17 @@ from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.base import BaseStorage
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
 
+from .commands import PrivateMenu, setup_commands
 from .config import Settings, get_settings
 from .db import init_db, make_engine, make_sessionmaker
 from .handlers import build_root_router
-from .middlewares import BackupMiddleware, DbSessionMiddleware
-from .services.llm import build_summarizer
+from .middlewares import BackupMiddleware, DbSessionMiddleware, PrivateAccessMiddleware
+from .services.llm import build_llm_client, build_summarizer
 from .services.media import MediaDownloader
 from .services.member_tags import MemberTagResolver
 from .services.moderation import ModerationRules, RuleAnalyzer
+from .web.server import start_web
 
 log = logging.getLogger("beta_bot")
 
@@ -56,30 +57,6 @@ def make_bot(settings: Settings) -> Bot:
     )
 
 
-async def set_commands(bot: Bot, settings: Settings) -> None:
-    public = [
-        BotCommand(command="bug_report", description="Сообщить о баге"),
-        BotCommand(command="feature", description="Предложить идею"),
-    ]
-    await bot.set_my_commands(public, scope=BotCommandScopeChat(chat_id=settings.chat_id))
-    await bot.set_my_commands(
-        [*public, BotCommand(command="cancel", description="Отменить анкету")],
-        scope=BotCommandScopeAllPrivateChats(),
-    )
-    admin_cmds = [
-        *public,
-        BotCommand(command="cancel", description="Отменить анкету"),
-        BotCommand(command="changelog", description="Опубликовать changelog"),
-        BotCommand(command="status", description="Статус репорта: ID статус [комментарий]"),
-        BotCommand(command="report", description="Открыть репорт по ID"),
-    ]
-    for admin_id in settings.admin_ids:
-        try:
-            await bot.set_my_commands(admin_cmds, scope=BotCommandScopeChat(chat_id=admin_id))
-        except Exception:  # админ мог ещё не запускать бота
-            log.info("cannot set commands for admin %s", admin_id)
-
-
 async def main() -> None:
     settings = get_settings()
     logging.basicConfig(
@@ -98,32 +75,44 @@ async def main() -> None:
     media = MediaDownloader(
         bot, sessionmaker, settings.media_dir, settings.media_download_concurrency, settings.media_max_bytes
     )
+    llm = build_llm_client(settings) if settings.llm_enabled else None
+    if llm:
+        await llm.resolve()  # просто чтобы в логах сразу было видно, куда пойдём
     rules = ModerationRules(
         allowed_domains=settings.allowed_domains,
         allowed_mentions=settings.allowed_mentions | {(me.username or "").lower()},
         block_mentions=settings.block_mentions,
     )
 
+    tags = MemberTagResolver()
     dp = Dispatcher(
         storage=make_storage(settings),
         # Всё ниже приходит в хендлеры как именованные аргументы.
         settings=settings,
         media=media,
-        tags=MemberTagResolver(),
-        summarizer=build_summarizer(settings.llm_enabled),
+        tags=tags,
+        summarizer=build_summarizer(settings, llm),
         analyzers=[RuleAnalyzer()],  # TODO(llm): сюда добавится LLM-анализатор
         bot_username=me.username,
     )
     dp.update.outer_middleware(BackupMiddleware(settings.chat_id, sessionmaker, media))
     dp.update.middleware(DbSessionMiddleware(sessionmaker))
+    access = PrivateAccessMiddleware(settings, tags, PrivateMenu(settings))
+    dp.message.outer_middleware(access)
+    dp.callback_query.outer_middleware(access)
     dp.include_router(build_root_router(settings, rules))
 
-    await set_commands(bot, settings)
+    web_runner = await start_web(settings, sessionmaker) if settings.web_enabled else None
+    await setup_commands(bot, settings)
     log.info("started as @%s, chat %s", me.username, settings.chat_id)
     try:
         await dp.start_polling(bot, allowed_updates=ALLOWED_UPDATES)
     finally:
+        if web_runner:
+            await web_runner.cleanup()
         await bot.session.close()
+        if llm:
+            await llm.close()
         await engine.dispose()
 
 

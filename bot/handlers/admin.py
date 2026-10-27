@@ -12,16 +12,18 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import keyboards, texts
 from ..config import Settings
-from ..db.models import ChangelogEntry
+from ..db.models import ChangelogEntry, Topic
 from ..services import reports
 from ..services.llm import Summarizer
+from ..services.topic_scan import report_text, scan_topics, test_configured_topics
 from ..states import ChangelogForm
 from ..utils.ids import normalize_public_id
-from ..utils.telegram import fmt_dt, post_link, thread_param
+from ..utils.telegram import fmt_dt, post_link, spawn, thread_param
 
 log = logging.getLogger(__name__)
 
@@ -122,6 +124,27 @@ def build_router(settings: Settings) -> Router:
         if isinstance(callback.message, Message):
             await callback.message.edit_reply_markup(reply_markup=None)
             await callback.message.answer(texts.CHANGELOG_ASK_VERSION, reply_markup=keyboards.no_version_kb())
+
+    # ------------------------------------------------------------ поиск топиков
+
+    @router.message(Command("scan_topics"), F.chat.type == ChatType.PRIVATE)
+    async def scan_topics_cmd(message: Message, command: CommandObject, bot: Bot, session: AsyncSession) -> None:
+        max_id = int(command.args) if (command.args or "").isdigit() else 300
+        known = set(
+            (await session.execute(select(Topic.thread_id).where(Topic.chat_id == settings.chat_id))).scalars()
+        )
+        await message.answer(f"Ищу топики (перебор до {max_id}), в каждый найденный запощу его ID…")
+
+        async def run() -> None:
+            found = await scan_topics(bot, settings.chat_id, max_thread_id=max_id, known=known)
+            await message.answer(report_text(found, max_id))
+
+        spawn(run())
+
+    @router.message(Command("test_topics"), F.chat.type == ChatType.PRIVATE)
+    async def test_topics_cmd(message: Message, bot: Bot) -> None:
+        lines = await test_configured_topics(bot, settings)
+        await message.answer("Тестовые посты в топики из .env:\n" + "\n".join(lines))
 
     # ------------------------------------------------------------ статусы (в ЛС или в чате)
 
