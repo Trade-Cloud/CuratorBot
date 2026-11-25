@@ -12,8 +12,10 @@ RUN useradd --create-home --uid 1000 bot && mkdir -p /data/media && chown -R bot
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Файлы на хосте могут быть 600 (так на Маке) — без chown/chmod пользователь bot их не прочитает.
+# Host files may be 600 (as on a Mac) — without chown/chmod the bot user can't read them.
 COPY --chown=bot:bot --chmod=u=rwX,go=rX bot ./bot
+# text.json (all bot text) and config.json (non-secret tunables) are read at startup from /app.
+COPY --chown=bot:bot --chmod=u=rwX,go=rX config.json text.json ./
 
 USER bot
 

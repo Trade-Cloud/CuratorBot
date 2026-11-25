@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -84,6 +84,16 @@ input[type=search]:focus { outline: 1px solid var(--accent); }
 .file { display: inline-flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; text-decoration: none; color: var(--text); }
 .file.pending { color: var(--muted); }
 
+.btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; color: var(--text); background: var(--panel-2); white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.danger { border-color: var(--bad); color: var(--bad); }
+.btn.flash { animation: flash 1.6s ease-out; }
+.acts { display: flex; flex-wrap: wrap; gap: 4px; }
+select, input[type=text] { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px; max-width: 220px; }
+select:focus, input[type=text]:focus { outline: 1px solid var(--accent); }
+.row-ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.links a { margin-right: 10px; font-size: 12px; white-space: nowrap; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; position: sticky; top: 0; background: var(--bg); }
@@ -124,22 +134,23 @@ details summary { cursor: pointer; color: var(--accent); }
 </header>
 <div class="layout">
   <aside>
-    <div class="nav-title">Лента</div>
+    <div class="nav-title">Feed</div>
     <div id="topics"></div>
-    <div class="nav-title">Разделы</div>
-    <button class="nav-item" data-view="edits">✏️ Правки <span class="count" id="cntEdits"></span></button>
-    <button class="nav-item" data-view="reports">🐞 Репорты <span class="count" id="cntReports"></span></button>
-    <button class="nav-item" data-view="violations">🛡 Нарушения <span class="count" id="cntViolations"></span></button>
-    <button class="nav-item" data-view="users">👥 Участники</button>
+    <div class="nav-title">Sections</div>
+    <button class="nav-item" data-view="edits">✏️ Edits <span class="count" id="cntEdits"></span></button>
+    <button class="nav-item" data-view="reports">🐞 Reports <span class="count" id="cntReports"></span></button>
+    <button class="nav-item" data-view="drafts">📝 Drafts <span class="count" id="cntDrafts"></span></button>
+    <button class="nav-item" data-view="violations">🛡 Violations <span class="count" id="cntViolations"></span></button>
+    <button class="nav-item" data-view="users">👥 Members</button>
   </aside>
   <main>
     <div class="toolbar">
-      <h2 id="title">Все сообщения</h2>
-      <input type="search" id="search" placeholder="Поиск по тексту…">
+      <h2 id="title">All messages</h2>
+      <input type="search" id="search" placeholder="Search text…">
       <span id="filters"></span>
     </div>
     <div id="feed"></div>
-    <button id="jump">↓ новые</button>
+    <button id="jump">↓ new</button>
   </main>
 </div>
 <div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
@@ -165,7 +176,14 @@ async function api(path) {
   if (!r.ok) throw new Error(path + " → " + r.status);
   return r.json();
 }
-const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+async function apiSend(path, body, method = "POST") {
+  const r = await fetch(path, { method, credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const text = await r.text();
+  if (!r.ok) throw new Error(text || (path + " → " + r.status));
+  try { return JSON.parse(text); } catch { return {}; }
+}
+let meta = { statuses: {}, member_actions: [], can_manage: false, bot_username: null };
+const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
 const fmtSize = (n) => !n ? "" : n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(0) + " KB" : (n / 1048576).toFixed(1) + " MB";
 const COLORS = ["#ff4d00", "#3b82f6", "#10b981", "#a855f7", "#ec4899", "#eab308", "#14b8a6", "#f97316", "#6366f1"];
 const colorFor = (id) => COLORS[Math.abs(Number(id || 0)) % COLORS.length];
@@ -184,13 +202,13 @@ function renderTopics() {
     class: "nav-item" + (state.view === "feed" && state.thread === id ? " active" : ""),
     onclick: () => openFeed(id),
   }, id === null ? "💬" : "#", " ", name, el("span", { class: "count" }, count));
-  box.append(item(null, "Все", total));
+  box.append(item(null, "All", total));
   for (const t of state.topics) box.append(item(t.id, t.name, t.count));
   document.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("active", state.view === b.dataset.view));
 }
 function bumpTopic(threadId) {
   const t = state.topics.find((x) => x.id === threadId);
-  if (t) t.count++; else state.topics.push({ id: threadId, name: "Топик " + threadId, count: 1 });
+  if (t) t.count++; else state.topics.push({ id: threadId, name: "Topic " + threadId, count: 1 });
   renderTopics();
 }
 
@@ -218,22 +236,22 @@ function renderFilters() {
 async function openFeed(thread) {
   state.view = "feed"; state.thread = thread; state.pending = 0;
   const t = state.topics.find((x) => x.id === thread);
-  $("#title").textContent = thread === null ? "Все сообщения" : "# " + (t ? t.name : thread);
+  $("#title").textContent = thread === null ? "All messages" : "# " + (t ? t.name : thread);
   $("#search").style.display = "";
   renderTopics(); renderFilters();
-  feed.replaceChildren(el("div", { class: "empty" }, "Загрузка…"));
+  feed.replaceChildren(el("div", { class: "empty" }, "Loading…"));
   const list = await api(feedQuery({ limit: 100 }));
   feed.replaceChildren();
   state.oldest = list.length ? list[0].pk : null;
   state.newest = list.length ? list[list.length - 1].pk : state.newest;
   if (list.length === 100) feed.append(moreButton());
-  if (!list.length) feed.append(el("div", { class: "empty", id: "emptyFeed" }, "Сообщений пока нет. Новые появятся здесь сами."));
+  if (!list.length) feed.append(el("div", { class: "empty", id: "emptyFeed" }, "No messages yet. New ones will appear here automatically."));
   for (const m of list) feed.append(renderMsg(m));
   feed.scrollTop = feed.scrollHeight;
   hideJump();
 }
 function moreButton() {
-  return el("button", { class: "more", id: "more", onclick: loadOlder }, "Загрузить раньше");
+  return el("button", { class: "more", id: "more", onclick: loadOlder }, "Load earlier");
 }
 async function loadOlder() {
   if (!state.oldest) return;
@@ -250,7 +268,7 @@ async function loadOlder() {
 
 function renderMsg(m) {
   const u = m.user;
-  const name = u ? u.name : (m.sender_chat_id ? "Анонимный админ / канал" : "—");
+  const name = u ? u.name : (m.sender_chat_id ? "Anonymous admin / channel" : "—");
   const tag = m.sender_tag || (u && u.tag);
   const node = el("div", { class: "msg" + (m.deleted_by_bot ? " deleted" : ""), id: "m" + m.pk, "data-mid": m.message_id },
     el("div", { class: "avatar", style: "background:" + colorFor(u ? u.id : m.sender_chat_id) }, (name[0] || "?").toUpperCase()),
@@ -262,11 +280,12 @@ function renderMsg(m) {
         state.thread === null ? el("span", { class: "topic-label" }, "#" + m.topic) : null,
         el("span", {}, fmtTime(m.date)),
         el("span", { class: "mono" }, "#" + m.message_id),
-        m.edited ? el("span", { class: "edited", onclick: () => showVersions(m) }, "изменено ×" + m.edit_count) : null,
-        m.deleted_by_bot ? el("span", { class: "del" }, "удалено модерацией") : null,
+        m.link ? el("a", { href: m.link, target: "_blank", title: "Open in Telegram" }, "↗") : null,
+        m.edited ? el("span", { class: "edited", onclick: () => showVersions(m) }, "edited ×" + m.edit_count) : null,
+        m.deleted_by_bot ? el("span", { class: "del" }, "deleted by moderation") : null,
       ),
-      m.reply ? el("div", { class: "reply" }, "↩ ", el("b", {}, m.reply.user ? m.reply.user.name : "сообщение #" + m.reply.message_id), " ", m.quote || m.reply.text || "") : null,
-      m.forward ? el("div", { class: "fwd" }, "⤳ Переслано: ", el("b", {}, forwardName(m.forward))) : null,
+      m.reply ? el("div", { class: "reply" }, "↩ ", el("b", {}, m.reply.user ? m.reply.user.name : "message #" + m.reply.message_id), " ", m.quote || m.reply.text || "") : null,
+      m.forward ? el("div", { class: "fwd" }, "⤳ Forwarded: ", el("b", {}, forwardName(m.forward))) : null,
       m.text ? el("div", { class: "text" }, m.text) : (!m.attachments.length ? el("div", { class: "text", style: "color:var(--muted)" }, "[" + m.content_type + "]") : null),
       m.attachments.length ? el("div", { class: "atts" }, m.attachments.map(renderAtt)) : null,
       m.last_change ? renderChange(m) : null,
@@ -277,18 +296,18 @@ function renderMsg(m) {
 function renderChange(m) {
   const c = m.last_change;
   const parts = [];
-  if (c.text_changed) parts.push("было: ", el("span", { class: "was" }, (c.old_text || "—").slice(0, 160)));
-  if (c.media_changed) parts.push(parts.length ? " · " : "", "🖼 медиа заменено");
-  if (!parts.length) parts.push("изменено без видимой разницы");
-  return el("div", { class: "change", title: "История правок", onclick: () => showVersions(m) }, "✏️ ", fmtTime(c.date), " — ", parts);
+  if (c.text_changed) parts.push("was: ", el("span", { class: "was" }, (c.old_text || "—").slice(0, 160)));
+  if (c.media_changed) parts.push(parts.length ? " · " : "", "🖼 media replaced");
+  if (!parts.length) parts.push("edited with no visible difference");
+  return el("div", { class: "change", title: "Edit history", onclick: () => showVersions(m) }, "✏️ ", fmtTime(c.date), " — ", parts);
 }
 function diffBlock(v) {
   const rows = [];
-  if (v.old !== v.new) rows.push(el("div", { class: "lbl" }, "было"), el("div", { class: "old" }, v.old ?? "—"), el("div", { class: "lbl" }, "стало"), el("div", { class: "new" }, v.new ?? "—"));
+  if (v.old !== v.new) rows.push(el("div", { class: "lbl" }, "was"), el("div", { class: "old" }, v.old ?? "—"), el("div", { class: "lbl" }, "now"), el("div", { class: "new" }, v.new ?? "—"));
   if (v.media_changed) rows.push(
-    el("div", { class: "lbl" }, "медиа"),
-    el("div", { class: "atts" }, v.old_attachments.length ? v.old_attachments.map(renderAtt) : "—", el("span", { style: "align-self:center" }, "→"), v.new_attachments.length ? v.new_attachments.map(renderAtt) : "убрано"));
-  if (!rows.length) rows.push(el("div", { class: "lbl" }, ""), el("div", { class: "new", style: "color:var(--muted)" }, "текст и медиа не изменились (правка форматирования или ссылок)"));
+    el("div", { class: "lbl" }, "media"),
+    el("div", { class: "atts" }, v.old_attachments.length ? v.old_attachments.map(renderAtt) : "—", el("span", { style: "align-self:center" }, "→"), v.new_attachments.length ? v.new_attachments.map(renderAtt) : "removed"));
+  if (!rows.length) rows.push(el("div", { class: "lbl" }, ""), el("div", { class: "new", style: "color:var(--muted)" }, "text and media unchanged (formatting or link edit)"));
   return el("div", { class: "diff" }, rows);
 }
 function renderEdit(v) {
@@ -297,9 +316,10 @@ function renderEdit(v) {
     el("div", { class: "meta" },
       "✏️ ", el("span", { class: "name", onclick: () => u && filterUser(u) }, u ? u.name : "—"),
       u && u.username ? el("span", {}, "@" + u.username) : null,
-      el("span", {}, "изменил сообщение"), el("span", { class: "mono" }, "#" + v.message_id),
+      el("span", {}, "edited a message"), el("span", { class: "mono" }, "#" + v.message_id),
+      v.link ? el("a", { href: v.link, target: "_blank", title: "Open in Telegram" }, "↗") : null,
       el("span", { class: "topic-label" }, "#" + v.topic), el("span", {}, fmtTime(v.date)),
-      el("span", { class: "mono" }, "правка " + v.version)),
+      el("span", { class: "mono" }, "edit " + v.version)),
     diffBlock(v));
 }
 function forwardName(f) {
@@ -310,7 +330,7 @@ function forwardName(f) {
   return f.type || "?";
 }
 function renderAtt(a) {
-  if (!a.url) return el("span", { class: "file pending" }, "📎 ", a.file_name || a.kind, " · ", a.status === "too_big" ? "больше 20 МБ, не скачан" : a.status === "failed" ? "ошибка скачивания" : "скачивается…");
+  if (!a.url) return el("span", { class: "file pending" }, "📎 ", a.file_name || a.kind, " · ", a.status === "too_big" ? "over 20 MB, not downloaded" : a.status === "failed" ? "download error" : "downloading…");
   const mime = a.mime_type || "";
   if (a.kind === "photo" || (a.kind === "sticker" && !mime.includes("tgsticker") && !mime.startsWith("video/")) || mime.startsWith("image/"))
     return el("img", { src: a.url, loading: "lazy", class: a.kind === "sticker" ? "sticker" : "", onclick: () => showImage(a.url) });
@@ -324,10 +344,10 @@ function filterUser(u) { state.user = u; openFeed(state.thread); }
 
 async function showVersions(m) {
   const list = await api(`/api/messages/${m.pk}/versions`);
-  openModal(el("div", {}, el("h3", { style: "margin-top:0" }, "История правок #" + m.message_id),
+  openModal(el("div", {}, el("h3", { style: "margin-top:0" }, "Edit history #" + m.message_id),
     list.length ? list.map((v) => el("div", { class: "ver" },
-      el("div", { class: "meta", style: "margin-bottom:6px" }, "Правка " + v.version + " · " + fmtTime(v.date)),
-      diffBlock(v))) : el("div", { class: "empty" }, "Правок нет")));
+      el("div", { class: "meta", style: "margin-bottom:6px" }, "Edit " + v.version + " · " + fmtTime(v.date)),
+      diffBlock(v))) : el("div", { class: "empty" }, "No edits")));
 }
 function showImage(url) { openModal(el("img", { src: url })); }
 function openModal(content) { $("#modalBox").replaceChildren(content); $("#modal").classList.add("open"); }
@@ -338,49 +358,121 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#modal"
 async function openView(view) {
   state.view = view;
   renderTopics(); $("#filters").replaceChildren(); $("#search").style.display = "none"; hideJump();
-  const titles = { edits: "Правки сообщений", reports: "Репорты", violations: "Нарушения модерации", users: "Участники" };
+  const titles = { edits: "Message edits", reports: "Reports", drafts: "Form drafts", violations: "Moderation violations", users: "Members" };
   $("#title").textContent = titles[view];
   const data = await api("/api/" + view);
   if (state.view !== view) return;
-  feed.replaceChildren(view === "edits" ? editsList(data) : view === "reports" ? reportsTable(data) : view === "violations" ? violationsTable(data) : usersTable(data));
+  const render = { edits: editsList, reports: reportsTable, drafts: draftsTable, violations: violationsTable, users: usersTable }[view];
+  feed.replaceChildren(render(data));
   feed.scrollTop = 0;
 }
 function editsList(rows) {
   $("#cntEdits").textContent = rows.length || "";
-  if (!rows.length) return el("div", { class: "empty", id: "emptyEdits" }, "Правок пока нет. Новые появятся здесь сами.");
+  if (!rows.length) return el("div", { class: "empty", id: "emptyEdits" }, "No edits yet. New ones will appear here automatically.");
   return el("div", { id: "editsBox" }, rows.map(renderEdit));
 }
-const FIELD_NAMES = { summary: "Аннотация (ИИ)", description: "Описание", steps: "Шаги", actual: "Факт", expected: "Ожидание", environment: "Окружение", logs: "Логи", idea: "Идея", problem: "Проблема", implementation: "Реализация" };
+const FIELD_NAMES = { summary: "Summary (AI)", description: "Description", steps: "Steps", actual: "Actual", expected: "Expected", environment: "Environment", logs: "Logs", idea: "Idea", problem: "Problem", implementation: "Implementation" };
+const STEP_LABELS = { description: "Description", steps: "Steps", actual: "Actual", expected: "Expected", environment: "Environment", attachments: "Attachments", confirm: "Confirmation", idea: "Idea", problem: "Problem", implementation: "Implementation" };
+function stepLabel(s) { if (!s) return "—"; const k = String(s).split(":").pop().toLowerCase(); return STEP_LABELS[k] || s; }
+function fieldsDetails(fields, summary) {
+  return el("details", {}, el("summary", {}, (summary || "").slice(0, 120) || "—"),
+    el("dl", { class: "kv" }, Object.entries(fields).flatMap(([k, v]) => [el("dt", {}, FIELD_NAMES[k] || k), el("dd", {}, Array.isArray(v) ? v.join("\n---\n") : String(v))])));
+}
+async function saveStatus(r, sel, comment, btn) {
+  btn.disabled = true;
+  try {
+    await apiSend(`/api/reports/${r.id}/status`, { status: sel.value, comment: comment.value });
+    r.status = sel.value; r.status_comment = comment.value;
+    const old = btn.textContent; btn.classList.add("flash"); btn.textContent = "✓ Saved";
+    setTimeout(() => { btn.textContent = old; btn.classList.remove("flash"); btn.disabled = false; }, 1500);
+  } catch (e) { alert("Failed to change status: " + e.message); btn.disabled = false; }
+}
+function statusCell(r) {
+  const sel = el("select", {});
+  const opts = Object.keys(meta.statuses || {}).length ? meta.statuses : { [r.status]: r.status };
+  for (const [k, label] of Object.entries(opts)) { const o = el("option", { value: k }, label); if (k === r.status) o.selected = true; sel.append(o); }
+  const comment = el("input", { type: "text", placeholder: "comment", value: r.status_comment || "" });
+  const btn = el("button", { class: "btn primary" }, "Save");
+  if (!meta.can_manage) { btn.disabled = true; btn.title = "bot unavailable"; }
+  btn.addEventListener("click", () => saveStatus(r, sel, comment, btn));
+  return el("div", { class: "row-ctl" }, sel, comment, btn);
+}
+function linksCell(r) {
+  const a = [];
+  if (r.post_link) a.push(el("a", { href: r.post_link, target: "_blank" }, "Post in chat"));
+  if (r.bot_link) a.push(el("a", { href: r.bot_link, target: "_blank" }, "Open in bot"));
+  return a.length ? el("div", { class: "links" }, a) : el("span", { style: "color:var(--muted)" }, "—");
+}
 function reportsTable(rows) {
   $("#cntReports").textContent = rows.length || "";
-  if (!rows.length) return el("div", { class: "empty" }, "Репортов пока нет");
-  return el("table", {}, el("tr", {}, ["ID", "Тип", "Статус", "Автор", "Создан", "Содержимое"].map((h) => el("th", {}, h))),
+  if (!rows.length) return el("div", { class: "empty" }, "No reports yet");
+  return el("table", {}, el("tr", {}, ["ID", "Type", "Author", "Created", "Content", "Manage", "Links"].map((h) => el("th", {}, h))),
     rows.map((r) => el("tr", {},
-      el("td", { class: "mono" }, "#" + r.id), el("td", {}, r.kind === "bug" ? "🐞 баг" : "💡 идея"),
-      el("td", {}, r.status, r.status_comment ? el("div", { style: "color:var(--muted)" }, r.status_comment) : null),
+      el("td", { class: "mono" }, "#" + r.id, r.attachments ? el("div", { style: "color:var(--muted)" }, "📎 " + r.attachments) : null),
+      el("td", {}, r.kind === "bug" ? "🐞 bug" : "💡 idea"),
       el("td", {}, r.user.name, r.user.username ? el("div", { style: "color:var(--muted)" }, "@" + r.user.username) : null),
       el("td", {}, fmtTime(r.created)),
-      el("td", {}, el("details", {}, el("summary", {}, (r.fields.summary || r.fields.description || r.fields.idea || "").slice(0, 120)),
-        el("dl", { class: "kv" }, Object.entries(r.fields).flatMap(([k, v]) => [el("dt", {}, FIELD_NAMES[k] || k), el("dd", {}, Array.isArray(v) ? v.join("\n---\n") : String(v))])))))));
+      el("td", {}, fieldsDetails(r.fields, r.fields.summary || r.fields.description || r.fields.idea || "")),
+      el("td", {}, statusCell(r)),
+      el("td", {}, linksCell(r)))));
+}
+function draftSummary(d) {
+  for (const k of ["description", "idea", "steps", "problem"]) if (d.fields[k]) return d.fields[k];
+  return "empty";
+}
+function draftsTable(rows) {
+  $("#cntDrafts").textContent = rows.length || "";
+  if (!rows.length) return el("div", { class: "empty", id: "emptyDrafts" }, "No active drafts");
+  return el("table", {}, el("tr", {}, ["Type", "Author", "Step", "📎", "Updated", "Content"].map((h) => el("th", {}, h))),
+    rows.map((d) => el("tr", {},
+      el("td", {}, d.kind === "bug" ? "🐞 bug" : "💡 idea"),
+      el("td", {}, d.user.name || ("id " + d.user.id), d.user.username ? el("div", { style: "color:var(--muted)" }, "@" + d.user.username) : null),
+      el("td", { class: "mono", style: "font-size:12px" }, stepLabel(d.step)),
+      el("td", {}, d.files || 0),
+      el("td", {}, fmtTime(d.updated)),
+      el("td", {}, fieldsDetails(d.fields, draftSummary(d))))));
 }
 function violationsTable(rows) {
   $("#cntViolations").textContent = rows.length || "";
-  if (!rows.length) return el("div", { class: "empty" }, "Нарушений нет");
-  return el("table", {}, el("tr", {}, ["Когда", "Кто", "Уровень", "Действие", "Найдено", "Текст"].map((h) => el("th", {}, h))),
+  if (!rows.length) return el("div", { class: "empty" }, "No violations");
+  return el("table", {}, el("tr", {}, ["When", "Who", "Level", "Action", "Found", "Text"].map((h) => el("th", {}, h))),
     rows.map((v) => el("tr", {},
       el("td", {}, fmtTime(v.created)), el("td", {}, v.user ? v.user.name : "—", v.user && v.user.username ? el("div", { style: "color:var(--muted)" }, "@" + v.user.username) : null),
       el("td", { class: "sev-" + v.severity }, v.severity), el("td", {}, v.action),
       el("td", { class: "mono", style: "font-size:12px" }, (v.findings || []).map((f) => el("div", {}, f.kind + ": " + f.match))),
       el("td", { class: "wrap" }, v.text || ""))));
 }
+const MEMBER_ACTIONS = [
+  ["🔇 mute 60", "mute", 60, false],
+  ["🔊 unmute", "unmute", null, false],
+  ["⛔️ ban", "ban", null, true],
+  ["👢 kick", "kick", null, true],
+  ["♻️ unban", "unban", null, false],
+];
+async function memberAct(u, action, minutes, danger, btn) {
+  if (danger && !confirm(`Action "${action}" for ${u.name}. This affects the member in the group. Continue?`)) return;
+  btn.disabled = true;
+  const old = btn.textContent;
+  try {
+    const res = await apiSend(`/api/members/${u.id}/action`, { action, minutes });
+    btn.classList.add("flash"); btn.textContent = "✓ " + res.result;
+  } catch (e) { alert("Failed: " + e.message); }
+  setTimeout(() => { btn.textContent = old; btn.classList.remove("flash"); btn.disabled = false; }, 1700);
+}
+function memberActions(u) {
+  if (!meta.can_manage) return el("span", { style: "color:var(--muted)" }, "—");
+  return el("div", { class: "acts" }, MEMBER_ACTIONS.map(([label, action, minutes, danger]) =>
+    el("button", { class: "btn" + (danger ? " danger" : ""), onclick: (e) => memberAct(u, action, minutes, danger, e.currentTarget) }, label)));
+}
 function usersTable(rows) {
-  if (!rows.length) return el("div", { class: "empty" }, "Пока никого");
-  return el("table", {}, el("tr", {}, ["Участник", "Тег", "Сообщений", "Впервые", "Последний раз"].map((h) => el("th", {}, h))),
+  if (!rows.length) return el("div", { class: "empty" }, "No one yet");
+  return el("table", {}, el("tr", {}, ["Member", "Tag", "Messages", "First seen", "Last seen", "Actions"].map((h) => el("th", {}, h))),
     rows.map((u) => el("tr", {},
       el("td", {}, el("span", { class: "name", style: "cursor:pointer;color:var(--accent)", onclick: () => filterUser(u) }, u.name),
         el("div", { style: "color:var(--muted)" }, (u.username ? "@" + u.username + " · " : "") + "id " + u.id)),
       el("td", {}, u.tag ? el("span", { class: "tag" + (STAFF.includes(u.tag.toLowerCase()) ? " staff" : "") }, u.tag) : ""),
-      el("td", { class: "mono" }, u.messages), el("td", {}, fmtTime(u.first_seen)), el("td", {}, fmtTime(u.last_seen)))));
+      el("td", { class: "mono" }, u.messages), el("td", {}, fmtTime(u.first_seen)), el("td", {}, fmtTime(u.last_seen)),
+      el("td", {}, memberActions(u)))));
 }
 document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => openView(b.dataset.view)));
 
@@ -406,7 +498,7 @@ function appendLive(m) {
   feed.append(node);
   state.newest = Math.max(state.newest || 0, m.pk);
   if (stick) feed.scrollTop = feed.scrollHeight;
-  else { state.pending++; $("#jump").textContent = "↓ новые: " + state.pending; $("#jump").style.display = "block"; }
+  else { state.pending++; $("#jump").textContent = "↓ new: " + state.pending; $("#jump").style.display = "block"; }
 }
 function replaceLive(m) {
   const old = document.getElementById("m" + m.pk);
@@ -421,12 +513,12 @@ function connect() {
   const live = $("#live");
   es.onopen = async () => {
     live.classList.add("on"); $("#liveText").textContent = "live";
-    // После обрыва догружаем то, что пропустили.
+    // After a drop, fetch whatever was missed.
     if (state.view === "feed" && state.newest) {
       try { for (const m of await api(feedQuery({ after: state.newest, limit: 500 }))) appendLive(m); } catch (e) {}
     }
   };
-  es.onerror = () => { live.classList.remove("on"); $("#liveText").textContent = "переподключение…"; };
+  es.onerror = () => { live.classList.remove("on"); $("#liveText").textContent = "reconnecting…"; };
   es.addEventListener("message", (e) => {
     const m = JSON.parse(e.data).message;
     bumpTopic(m.thread_id);
@@ -438,7 +530,7 @@ function connect() {
     const cnt = $("#cntEdits"); cnt.textContent = (Number(cnt.textContent) || 0) + 1;
     if (document.getElementById("m" + m.pk)) replaceLive(m);
     else if (v && matches(m)) {
-      // Правят сообщение, которого нет на экране, — показываем правку отдельной строкой в ленте.
+      // An off-screen message was edited — show the edit as a separate row in the feed.
       $("#emptyFeed")?.remove();
       const stick = nearBottom();
       const row = renderEdit(v); row.classList.add("flash"); feed.append(row);
@@ -452,22 +544,29 @@ function connect() {
     }
   });
   es.addEventListener("attachment", (e) => replaceLive(JSON.parse(e.data).message));
+  es.addEventListener("draft", () => {
+    api("/api/drafts").then((r) => $("#cntDrafts").textContent = r.length || "").catch(() => {});
+    if (state.view === "drafts") setTimeout(() => openView("drafts"), 400);
+  });
+  es.addEventListener("member", () => { if (state.view === "users") setTimeout(() => openView("users"), 400); });
   es.addEventListener("deleted", (e) => {
     const d = JSON.parse(e.data);
     const node = document.querySelector(`[data-mid="${d.message_id}"]`);
-    if (node) { node.classList.add("deleted", "flash"); node.querySelector(".meta").append(el("span", { class: "del" }, "удалено модерацией")); }
+    if (node) { node.classList.add("deleted", "flash"); node.querySelector(".meta").append(el("span", { class: "del" }, "deleted by moderation")); }
   });
   for (const type of ["report", "violation"]) {
     es.addEventListener(type, () => {
       const view = type + "s";
-      if (state.view === view) setTimeout(() => openView(view), 800); // даём транзакции закоммититься
+      if (state.view === view) setTimeout(() => openView(view), 800); // give the transaction time to commit
     });
   }
 }
 
+api("/api/meta").then((m) => { meta = { ...meta, ...m }; }).catch(() => {});
 loadTopics().then(() => openFeed(null));
 api("/api/edits").then((r) => $("#cntEdits").textContent = r.length || "");
 api("/api/reports").then((r) => $("#cntReports").textContent = r.length || "");
+api("/api/drafts").then((r) => $("#cntDrafts").textContent = r.length || "");
 api("/api/violations").then((r) => $("#cntViolations").textContent = r.length || "");
 connect();
 </script>

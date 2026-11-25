@@ -7,6 +7,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from .. import texts
 from ..services import backup
 from ..services.media import MediaDownloader
 from ..web.events import bus
@@ -15,8 +16,8 @@ log = logging.getLogger(__name__)
 
 
 class BackupMiddleware(BaseMiddleware):
-    """Outer-middleware на Update: сохраняет всё из бета-чата ДО хендлеров и в своей транзакции,
-    чтобы бекап не откатился, если хендлер упадёт (и чтобы модерация видела уже сохранённое сообщение)."""
+    """Update outer-middleware: saves everything from the beta chat BEFORE handlers, in its own transaction,
+    so the backup is not rolled back if a handler fails (and so moderation sees an already-saved message)."""
 
     def __init__(self, chat_id: int, sessionmaker: async_sessionmaker, media: MediaDownloader):
         self.chat_id = chat_id
@@ -33,8 +34,8 @@ class BackupMiddleware(BaseMiddleware):
             try:
                 await self._save(event)
             except Exception:
-                # Бекап не должен ронять обработку апдейта.
-                log.exception("backup failed for update %s", event.update_id)
+                # The backup must never break update processing.
+                log.exception(texts.LOG["backup"]["failed"], event.update_id)
         return await handler(event, data)
 
     async def _save(self, update: Update) -> None:

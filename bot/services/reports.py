@@ -1,4 +1,4 @@
-"""Баг-репорты и предложения: сохранение, посты в топики, карточка «Подробнее»."""
+"""Bug reports and feature requests: storage, topic posts, the "Details" card."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .. import texts
-from ..config import Settings
+from ..config import CONFIG, Settings
 from ..db.models import Attachment, Report
 from ..keyboards import DetailsCb
 from ..utils.ids import new_public_id
@@ -38,31 +38,11 @@ log = logging.getLogger(__name__)
 KIND_BUG = "bug"
 KIND_FEATURE = "feature"
 
-# Лимиты полей анкеты: пост с предложением целиком должен влезть в одно сообщение (4096).
-FIELD_LIMITS: dict[str, int] = {
-    "description": 1000,
-    "steps": 2500,
-    "actual": 1500,
-    "expected": 1500,
-    "environment": 300,
-    "log": 3500,
-    "idea": 1000,
-    "problem": 1200,
-    "implementation": 1500,
-}
+# Form field limits: a full feature-request post must fit into one message (4096).
+FIELD_LIMITS: dict[str, int] = CONFIG["reports"]["field_limits"]
 
-BUG_FIELDS = (
-    ("description", "Описание"),
-    ("steps", "Шаги воспроизведения"),
-    ("actual", "Фактический результат"),
-    ("expected", "Ожидаемый результат"),
-    ("environment", "Окружение"),
-)
-FEATURE_FIELDS = (
-    ("idea", "Суть идеи"),
-    ("problem", "Какую проблему решает"),
-    ("implementation", "Ожидаемая реализация"),
-)
+BUG_FIELDS = tuple(texts.FIELDS_BUG.items())
+FEATURE_FIELDS = tuple(texts.FIELDS_FEATURE.items())
 NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 
 
@@ -75,7 +55,7 @@ def _fields_block(fields: dict[str, Any], spec: tuple[tuple[str, str], ...]) -> 
     for key, title in spec:
         value = fields.get(key)
         if value:
-            parts.append(f"<b>{title}:</b>\n{escape(str(value))}")
+            parts.append(texts.FIELD_BLOCK.format(title=title, value=escape(str(value))))
     return "\n\n".join(parts)
 
 
@@ -85,11 +65,11 @@ def preview_text(kind: str, fields: dict[str, Any], attachments: int = 0) -> str
     extra = ""
     if kind == KIND_BUG:
         logs = fields.get("logs") or []
-        extra = f"\n\n📎 Вложений: {attachments}" + (f", логов текстом: {len(logs)}" if logs else "")
+        extra = texts.PREVIEW_ATTACHMENTS.format(n=attachments) + (texts.PREVIEW_LOGS.format(n=len(logs)) if logs else "")
     return f"{texts.PREVIEW_HEADER}\n\n{body}{extra}"
 
 
-# ---------------------------------------------------------------- создание
+# ---------------------------------------------------------------- creation
 
 
 async def _unique_public_id(session: AsyncSession) -> str:
@@ -140,35 +120,47 @@ def can_view(report: Report, user_id: int, settings: Settings) -> bool:
     return report.user_id == user_id or settings.is_admin(user_id)
 
 
-# ---------------------------------------------------------------- посты в топики
+def edit_field(report: Report, field: str, value: str) -> None:
+    """Write a new value for a form field. For bugs, drop the AI summary so the post
+    recomputes it from the updated fields."""
+    fields = dict(report.fields)
+    fields[field] = value
+    if report.kind == KIND_BUG:
+        fields.pop("summary", None)
+    report.fields = fields
+
+
+# ---------------------------------------------------------------- topic posts
 
 
 def _created_line(report: Report, settings: Settings) -> str:
     created = report.created_at or datetime.now(timezone.utc)
-    return (
-        f"👤 {user_html(report.user_id, report.full_name, report.username)}\n"
-        f"🕒 {fmt_dt(created, settings.timezone)}"
+    return texts.CREATED_LINE.format(
+        user=user_html(report.user_id, report.full_name, report.username),
+        dt=fmt_dt(created, settings.timezone),
     )
 
 
 async def bug_post_text(report: Report, settings: Settings, summarizer: Summarizer) -> str:
-    # Аннотацию считаем один раз при публикации и храним — смена статуса не должна заново дёргать LLM.
+    # Compute the summary once at publish time and store it — a status change must not re-invoke the LLM.
     summary = report.fields.get("summary")
     if not summary:
         summary = await summarizer.summarize_bug(report.fields, settings.bug_summary_chars)
         report.fields = {**report.fields, "summary": summary}
-    return (
-        f"🐞 <b>Баг</b> <code>#{report.public_id}</code> · {status_label(report.status)}\n\n"
-        f"{escape(summary)}\n\n"
-        f"{_created_line(report, settings)}"
+    return texts.POST_BUG.format(
+        rid=report.public_id,
+        status=status_label(report.status),
+        summary=escape(summary),
+        created=_created_line(report, settings),
     )
 
 
 def feature_post_text(report: Report, settings: Settings) -> str:
-    return (
-        f"💡 <b>Предложение</b> <code>#{report.public_id}</code> · {status_label(report.status)}\n\n"
-        f"{_fields_block(report.fields, FEATURE_FIELDS)}\n\n"
-        f"{_created_line(report, settings)}"
+    return texts.POST_FEATURE.format(
+        rid=report.public_id,
+        status=status_label(report.status),
+        body=_fields_block(report.fields, FEATURE_FIELDS),
+        created=_created_line(report, settings),
     )
 
 
@@ -217,7 +209,7 @@ async def refresh_post(bot: Bot, report: Report, settings: Settings, summarizer:
             link_preview_options=NO_PREVIEW,
         )
     except TelegramAPIError as exc:
-        log.warning("cannot edit post for %s: %s", report.public_id, exc)
+        log.warning(texts.LOG["reports"]["edit_post_failed"], report.public_id, exc)
 
 
 def report_post_link(report: Report) -> str | None:
@@ -226,7 +218,34 @@ def report_post_link(report: Report) -> str | None:
     return post_link(report.post_chat_id, report.post_message_id, report.post_thread_id)
 
 
-# ---------------------------------------------------------------- «Подробнее»
+async def apply_status(
+    bot: Bot,
+    session: AsyncSession,
+    report: Report,
+    status: str,
+    comment: str | None,
+    settings: Settings,
+    summarizer: Summarizer,
+) -> None:
+    """Change a report's status: update the chat post and notify the author. Shared by command and web."""
+    report.status = status
+    report.status_comment = comment or None
+    report.updated_at = datetime.now(timezone.utc)
+    await session.flush()
+    await refresh_post(bot, report, settings, summarizer)
+    label = status_label(report.status)
+    author_comment = f"\n{escape(report.status_comment)}" if report.status_comment else ""
+    kindword = texts.KINDWORD_FEATURE if report.kind == KIND_FEATURE else texts.KINDWORD_BUG
+    try:
+        await bot.send_message(
+            report.user_id,
+            texts.STATUS_CHANGED_AUTHOR.format(kind=kindword, rid=report.public_id, status=label, comment=author_comment),
+        )
+    except TelegramAPIError:
+        pass
+
+
+# ---------------------------------------------------------------- "Details"
 
 
 async def details_text(session: AsyncSession, report: Report, settings: Settings) -> str:
@@ -234,33 +253,41 @@ async def details_text(session: AsyncSession, report: Report, settings: Settings
         select(func.count(Report.id)).where(Report.user_id == report.user_id, Report.kind == report.kind)
     )
     created = report.created_at or datetime.now(timezone.utc)
+    header = (
+        texts.DETAILS_HEADER_BUG.format(rid=report.public_id) if report.kind == KIND_BUG
+        else texts.DETAILS_HEADER_FEATURE.format(rid=report.public_id)
+    )
+    status_line = texts.DETAILS_STATUS.format(status=status_label(report.status)) + (
+        texts.DETAILS_STATUS_COMMENT.format(comment=escape(report.status_comment)) if report.status_comment else ""
+    )
     lines = [
-        f"🐞 <b>Баг</b> <code>#{report.public_id}</code>" if report.kind == KIND_BUG
-        else f"💡 <b>Предложение</b> <code>#{report.public_id}</code>",
-        f"Статус: {status_label(report.status)}"
-        + (f" — {escape(report.status_comment)}" if report.status_comment else ""),
+        header,
+        status_line,
         "",
         _fields_block(report.fields, BUG_FIELDS if report.kind == KIND_BUG else FEATURE_FIELDS),
     ]
     logs = report.fields.get("logs") or []
     for i, chunk in enumerate(logs, 1):
-        lines += ["", f"<b>Лог {i}:</b>", f"<pre>{escape(str(chunk))}</pre>"]
+        lines += ["", texts.DETAILS_LOG_HEADER.format(i=i), texts.DETAILS_LOG_BODY.format(value=escape(str(chunk)))]
 
     attachments = report.attachments
     saved = sum(1 for a in attachments if a.status == "done")
+    total_kind = texts.DETAILS_TOTAL_KIND_BUG if report.kind == KIND_BUG else texts.DETAILS_TOTAL_KIND_FEATURE
     stats = [
-        f"Автор: {user_html(report.user_id, report.full_name, report.username)} · id <code>{report.user_id}</code>",
-        f"Создан: {fmt_dt(created, settings.timezone)}",
-        f"Обновлён: {fmt_dt(report.updated_at, settings.timezone)}" if report.updated_at else "",
-        f"Заполнение анкеты: {_duration(report.started_at, created)}" if report.started_at else "",
-        f"Вложений: {len(attachments)} (сохранено на диск: {saved})",
-        f"Логов текстом: {len(logs)}" if logs else "",
-        f"Всего {'багов' if report.kind == KIND_BUG else 'предложений'} от автора: {total_by_author}",
+        texts.DETAILS_AUTHOR.format(
+            user=user_html(report.user_id, report.full_name, report.username), user_id=report.user_id
+        ),
+        texts.DETAILS_CREATED.format(dt=fmt_dt(created, settings.timezone)),
+        texts.DETAILS_UPDATED.format(dt=fmt_dt(report.updated_at, settings.timezone)) if report.updated_at else "",
+        texts.DETAILS_DURATION.format(duration=_duration(report.started_at, created)) if report.started_at else "",
+        texts.DETAILS_ATTACHMENTS.format(total=len(attachments), saved=saved),
+        texts.DETAILS_TEXT_LOGS.format(n=len(logs)) if logs else "",
+        texts.DETAILS_TOTAL.format(kind=total_kind, n=total_by_author),
     ]
-    lines += ["", "<b>Статистика</b>", *(s for s in stats if s)]
+    lines += ["", texts.DETAILS_STATS_HEADER, *(s for s in stats if s)]
     link = report_post_link(report)
     if link:
-        lines.append(f'<a href="{link}">Пост в чате</a>')
+        lines.append(texts.DETAILS_POST_LINK.format(link=link))
     return "\n".join(lines)
 
 
@@ -269,10 +296,10 @@ def _duration(start: datetime, end: datetime) -> str:
     minutes, sec = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
     if hours:
-        return f"{hours} ч {minutes} мин"
+        return texts.DURATION_HM.format(h=hours, m=minutes)
     if minutes:
-        return f"{minutes} мин {sec} с"
-    return f"{sec} с"
+        return texts.DURATION_MS.format(m=minutes, s=sec)
+    return texts.DURATION_S.format(s=sec)
 
 
 async def send_details(bot: Bot, chat_id: int, session: AsyncSession, report: Report, settings: Settings) -> None:
@@ -283,8 +310,8 @@ async def send_details(bot: Bot, chat_id: int, session: AsyncSession, report: Re
 
 
 async def send_attachments(bot: Bot, chat_id: int, attachments: list[Attachment]) -> None:
-    """Альбомами по 10: фото+видео вместе, документы и аудио — отдельными альбомами
-    (Telegram не даёт смешивать их с фото). Остальное — по одному через send_*."""
+    """Albums of 10: photos+videos together; documents and audio as separate albums
+    (Telegram does not allow mixing them with photos). Everything else goes one by one via send_*."""
     visual = [a for a in attachments if a.kind in ("photo", "video")]
     docs = [a for a in attachments if a.kind == "document"]
     audio = [a for a in attachments if a.kind == "audio"]
@@ -299,7 +326,7 @@ async def send_attachments(bot: Bot, chat_id: int, attachments: list[Attachment]
                 else:
                     await bot.send_media_group(chat_id, [make(a) for a in batch])
             except TelegramAPIError as exc:
-                log.warning("send album failed: %s", exc)
+                log.warning(texts.LOG["reports"]["album_failed"], exc)
 
     await album(
         visual,
@@ -311,7 +338,7 @@ async def send_attachments(bot: Bot, chat_id: int, attachments: list[Attachment]
         try:
             await _send_single(bot, chat_id, att)
         except TelegramAPIError as exc:
-            log.warning("send attachment %s failed: %s", att.id, exc)
+            log.warning(texts.LOG["reports"]["attachment_failed"], att.id, exc)
 
 
 async def _send_single(bot: Bot, chat_id: int, att: Attachment) -> None:

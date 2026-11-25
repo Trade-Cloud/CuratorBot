@@ -1,14 +1,14 @@
-"""Локальная LLM (llama-server, OpenAI-совместимый API).
+"""Local LLM (llama-server, OpenAI-compatible API).
 
-Сейчас используется для короткого описания бага в публичном посте Bug Reports.
-Куда ещё можно подключить позже: Analyzer в модерации (services/moderation.py), поиск дублей.
+Currently used for the short bug summary in the public Bug Reports post.
+Possible future uses: a moderation Analyzer (services/moderation.py), duplicate detection.
 
-Адрес сервера:
-- LLM_BASE_URL задан — идём только туда;
-- иначе перебираем кандидатов и берём первый живой (проверка /health):
-  в Docker — host.docker.internal:8301 (сервер, где бот рядом с llm-qwen), потом LAN;
-  на Mac — сразу LAN-адрес сервера (LLM_SERVER_HOST, по умолчанию 192.168.1.145);
-  на Linux вне Docker — 127.0.0.1:8301, потом LAN.
+Server address:
+- LLM_BASE_URL set — use only that;
+- otherwise try the candidates and take the first live one (via /health):
+  in Docker — host.docker.internal:8301 (the server where the bot sits next to llm-qwen), then LAN;
+  on Mac — straight to the server's LAN address (LLM_SERVER_HOST, default 192.168.1.145);
+  on Linux outside Docker — 127.0.0.1:8301, then LAN.
 """
 
 from __future__ import annotations
@@ -23,42 +23,16 @@ from typing import Any, Protocol
 
 import aiohttp
 
+from .. import texts
 from ..utils.telegram import truncate
 
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------- промпт
+# ---------------------------------------------------------------- prompt
 
-BUG_SUMMARY_SYSTEM = """Ты пишешь короткую публичную аннотацию баг-репорта для чата бета-тестеров.
-
-Задача: 1–2 коротких предложения на русском, из которых понятно, ЧТО сломано и ГДЕ (раздел, функция, действие).
-
-Нельзя включать:
-- токены, ключи, пароли, cookie, логины, email, телефоны, ссылки, IP-адреса, домены;
-- ID заказов, аккаунтов, лотов, транзакций, суммы и балансы;
-- имена людей и ники;
-- логи, коды ответов, тела запросов, стектрейсы, пути файлов;
-- шаги воспроизведения, версии браузера/ОС, догадки о причине и советы.
-
-Пиши нейтрально, в третьем лице, без обращения к читателю, без вступлений вроде «Пользователь сообщает».
-Не додумывай того, чего нет в тексте. Ответ — только сам текст, без кавычек, markdown и префиксов."""
-
-BUG_SUMMARY_USER = """Баг-репорт целиком (используй всё, чтобы понять суть, но в ответ переноси только суть):
-
-Описание: {description}
-
-Шаги воспроизведения:
-{steps}
-
-Фактический результат: {actual}
-Ожидаемый результат: {expected}
-Окружение: {environment}
-
-Логи и комментарии к вложениям:
-{logs}
-
-Аннотация (до {limit} символов):"""
+BUG_SUMMARY_SYSTEM = texts.BUG_SUMMARY_SYSTEM
+BUG_SUMMARY_USER = texts.BUG_SUMMARY_USER
 
 
 def bug_prompt(fields: dict[str, Any], limit: int) -> str:
@@ -75,7 +49,7 @@ def bug_prompt(fields: dict[str, Any], limit: int) -> str:
     )
 
 
-# ---------------------------------------------------------------- постобработка
+# ---------------------------------------------------------------- post-processing
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _REDACT = (
@@ -83,14 +57,14 @@ _REDACT = (
     re.compile(r"[\w.+\-]+@[\w\-]+\.[\w.\-]+"),
     re.compile(r"(?<!\d)\+?\d[\d\s\-()]{8,}\d(?!\d)"),
     re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
-    # длинные токены/хеши/ключи
+    # long tokens/hashes/keys
     re.compile(r"\b(?=[A-Za-z0-9_\-]*\d)(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{20,}\b"),
     re.compile(r"(?<![\w@])@[A-Za-z][A-Za-z0-9_]{3,31}"),
 )
 
 
 def redact(text: str) -> str:
-    """Страховка поверх промпта: вырезаем то, что похоже на контакты, ссылки и секреты."""
+    """A safety net on top of the prompt: strip anything resembling contacts, links and secrets."""
     for pattern in _REDACT:
         text = pattern.sub("…", text)
     return re.sub(r"(?:…\s*){2,}", "… ", text)
@@ -98,14 +72,14 @@ def redact(text: str) -> str:
 
 def clean_completion(text: str) -> str:
     text = _THINK.sub("", text)
-    text = text.split("</think>")[-1]  # если открывающий тег обрезан
+    text = text.split("</think>")[-1]  # in case the opening tag was cut off
     text = text.strip().strip("\"'«»“”").strip()
-    text = re.sub(r"^(?:аннотация|ответ|summary)\s*:\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^(?:summary|answer|annotation)\s*:\s*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"[*_`#]+", "", text)
     return " ".join(text.split())
 
 
-# ---------------------------------------------------------------- клиент
+# ---------------------------------------------------------------- client
 
 
 def default_candidates(server_host: str, port: int) -> list[str]:
@@ -156,7 +130,7 @@ class LLMClient:
             return False
 
     async def resolve(self, force: bool = False) -> str | None:
-        """Первый живой адрес из кандидатов. Неудачу кешируем на минуту, чтобы не тормозить каждый репорт."""
+        """First live address among the candidates. A failure is cached for a minute so every report isn't slowed."""
         async with self._lock:
             if not force and (self._base or time.monotonic() - self._resolved_at < 60):
                 return self._base
@@ -165,10 +139,10 @@ class LLMClient:
             for base in self.candidates:
                 if await self._alive(base):
                     self._base = base
-                    log.info("LLM: using %s", base)
+                    log.info(texts.LOG["llm"]["using"], base)
                     break
             else:
-                log.warning("LLM: no reachable server among %s", self.candidates)
+                log.warning(texts.LOG["llm"]["unreachable"], self.candidates)
             return self._base
 
     async def models(self) -> list[str]:
@@ -191,7 +165,7 @@ class LLMClient:
             "temperature": temperature,
             "top_p": 0.9,
             "stream": False,
-            # Qwen3: без размышлений — нам нужен короткий ответ и быстро. Другие модели это поле игнорируют.
+            # Qwen3: no thinking — we want a short answer, fast. Other models ignore this field.
             "chat_template_kwargs": {"enable_thinking": False},
         }
         if self.model:
@@ -204,7 +178,7 @@ class LLMClient:
                     raise LLMUnavailable(f"HTTP {resp.status}: {(await resp.text())[:300]}")
                 data = await resp.json()
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-            self._base = None  # в следующий раз заново поищем живой адрес
+            self._base = None  # re-resolve a live address next time
             raise LLMUnavailable(str(exc) or exc.__class__.__name__) from exc
         return data["choices"][0]["message"].get("content") or ""
 
@@ -221,7 +195,7 @@ class Summarizer(Protocol):
 
 
 class TruncateSummarizer:
-    """Без LLM: аккуратно обрезанное описание."""
+    """No LLM: a neatly truncated description."""
 
     async def summarize_bug(self, fields: dict[str, Any], limit: int) -> str:
         return truncate(redact(str(fields.get("description", ""))), limit)
@@ -240,7 +214,7 @@ class LLMSummarizer:
                 max_tokens=max(64, limit // 2),
             )
         except (LLMUnavailable, KeyError, ValueError) as exc:
-            log.warning("LLM summary failed, fallback to truncate: %s", exc)
+            log.warning(texts.LOG["llm"]["summary_failed"], exc)
             return await self.fallback.summarize_bug(fields, limit)
         text = truncate(redact(clean_completion(raw)), limit)
         if len(text) < 10:

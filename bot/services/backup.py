@@ -1,9 +1,9 @@
-"""Бекап чата: каждое сообщение, правка и вложение.
+"""Chat backup: every message, edit and attachment.
 
-Ограничения Bot API, которые обойти нельзя:
-- удаления сообщений ботам не приходят (видим только то, что удалили мы сами);
-- без своего Bot API сервера файлы больше 20 МБ не скачиваются (сохраняем file_id и метаданные);
-- бот должен быть админом чата, иначе в топиках он видит не всё.
+Bot API limits that cannot be worked around:
+- deletions are not delivered to bots (we only see what we deleted ourselves);
+- without a self-hosted Bot API server, files larger than 20 MB are not downloaded (we keep the file_id and metadata);
+- the bot must be a chat admin, otherwise it does not see everything in topics.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def update_chat_id(update: Update) -> int | None:
 
 
 def message_text(message: Message) -> tuple[str | None, str | None, list[Any] | None]:
-    """(plain, html, entities) — для обычного текста и для подписей к медиа."""
+    """(plain, html, entities) for both plain text and media captions."""
     if message.text is not None:
         return message.text, message.html_text, dump(message.entities)
     if message.caption is not None:
@@ -87,7 +87,7 @@ async def upsert_user(session: AsyncSession, user: User, tag: str | None = None)
 
 
 async def save_topic_event(session: AsyncSession, message: Message) -> None:
-    """Запоминаем названия топиков, когда видим их создание или переименование."""
+    """Record topic names when we see a topic created or renamed."""
     created = message.forum_topic_created
     edited = message.forum_topic_edited
     if not (created or edited):
@@ -121,7 +121,7 @@ def _reply_chat_id(message: Message) -> int | None:
 
 
 async def save_message(session: AsyncSession, message: Message) -> list[int]:
-    """Новое сообщение. Возвращает id вложений, которые надо скачать."""
+    """Store a new message. Returns the ids of attachments to download."""
     text, html_text, entities = message_text(message)
     reply = message.reply_to_message
     row = ChatMessage(
@@ -150,8 +150,8 @@ async def save_message(session: AsyncSession, message: Message) -> list[int]:
 
 
 async def save_edit(session: AsyncSession, message: Message) -> tuple[list[int], int | None]:
-    """Правка: пишем версию (старый/новый текст и старые/новые вложения), обновляем текущее состояние.
-    Возвращает (id вложений для скачивания, id версии)."""
+    """Store an edit: write a version (old/new text and old/new attachments), update the current state.
+    Returns (attachment ids to download, version id)."""
     row = (
         await session.execute(
             select(ChatMessage).where(
@@ -160,7 +160,7 @@ async def save_edit(session: AsyncSession, message: Message) -> tuple[list[int],
         )
     ).scalar_one_or_none()
     if row is None:
-        # Сообщение было до запуска бота — сохраняем как есть, старого текста у нас нет.
+        # The message predates the bot — store it as is, we have no previous text.
         att_ids = await save_message(session, message)
         return att_ids, None
 
@@ -177,7 +177,7 @@ async def save_edit(session: AsyncSession, message: Message) -> tuple[list[int],
     new_unique = {r.file_unique_id for r in refs}
     old_ids = [a.id for a in current]
 
-    # Медиа заменили (или убрали) — старые вложения помечаем, новые добавляем.
+    # Media replaced (or removed): flag the old attachments, add the new ones.
     new_rows = []
     if refs and new_unique != {a.file_unique_id for a in current}:
         for att in current:
@@ -195,7 +195,7 @@ async def save_edit(session: AsyncSession, message: Message) -> tuple[list[int],
     last_version = await session.scalar(
         select(func.coalesce(func.max(MessageVersion.version), 0)).where(MessageVersion.message_pk == row.id)
     )
-    # В aiogram edit_date — unix-время (int), а не datetime, как date.
+    # In aiogram edit_date is a unix timestamp (int), not a datetime like date.
     edit_date = _as_datetime(message.edit_date)
     version = MessageVersion(
         message_pk=row.id,

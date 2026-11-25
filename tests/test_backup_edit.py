@@ -1,4 +1,4 @@
-"""Правки: версия текста, замена медиа, мини-миграция колонок."""
+"""Edits: text version, media replacement, the tiny column migration."""
 
 from datetime import datetime, timezone
 
@@ -12,7 +12,7 @@ from bot.db.models import Attachment, MessageVersion
 from bot.services import backup
 
 CHAT = {"id": -1001, "type": "supergroup", "title": "beta", "is_forum": True}
-USER = {"id": 10, "is_bot": False, "first_name": "Вася"}
+USER = {"id": 10, "is_bot": False, "first_name": "Vasya"}
 TS = int(datetime(2026, 10, 27, tzinfo=timezone.utc).timestamp())
 
 
@@ -35,15 +35,15 @@ async def session():
 
 
 async def test_text_edit_creates_version(session):
-    await backup.save_message(session, msg(text="старый"))
-    _, version_id = await backup.save_edit(session, msg(text="новый", edit_date=TS + 60))
+    await backup.save_message(session, msg(text="old"))
+    _, version_id = await backup.save_edit(session, msg(text="new", edit_date=TS + 60))
     v = await session.get(MessageVersion, version_id)
-    assert (v.old_text, v.new_text) == ("старый", "новый")
+    assert (v.old_text, v.new_text) == ("old", "new")
 
 
 async def test_photo_replacement(session):
-    await backup.save_message(session, msg(photo=photo("A"), caption="скрин"))
-    new_att_ids, version_id = await backup.save_edit(session, msg(photo=photo("B"), caption="скрин", edit_date=TS + 5))
+    await backup.save_message(session, msg(photo=photo("A"), caption="screenshot"))
+    new_att_ids, version_id = await backup.save_edit(session, msg(photo=photo("B"), caption="screenshot", edit_date=TS + 5))
     assert len(new_att_ids) == 1
     atts = {a.file_unique_id: a for a in (await session.execute(select(Attachment))).scalars()}
     assert atts["A"].replaced_by_edit is True
@@ -53,8 +53,8 @@ async def test_photo_replacement(session):
 
 
 async def test_caption_only_edit_keeps_media(session):
-    await backup.save_message(session, msg(photo=photo("A"), caption="раз"))
-    new_att_ids, version_id = await backup.save_edit(session, msg(photo=photo("A"), caption="два", edit_date=TS + 5))
+    await backup.save_message(session, msg(photo=photo("A"), caption="one"))
+    new_att_ids, version_id = await backup.save_edit(session, msg(photo=photo("A"), caption="two", edit_date=TS + 5))
     assert new_att_ids == []
     v = await session.get(MessageVersion, version_id)
     assert v.old_attachments == v.new_attachments

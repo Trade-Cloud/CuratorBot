@@ -1,4 +1,4 @@
-"""Вытаскиваем файлы из сообщений и складываем копии на диск в фоне."""
+"""Extract files from messages and save copies to disk in the background."""
 
 from __future__ import annotations
 
@@ -14,13 +14,14 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from .. import texts
 from ..db.models import Attachment
 from ..utils.telegram import spawn
 from ..web.events import bus
 
 log = logging.getLogger(__name__)
 
-# Порядок важен только для логов; в одном сообщении обычно один файл.
+# Order only matters for the logs; a single message usually has one file.
 _FILE_KINDS = (
     "document",
     "video",
@@ -129,4 +130,4 @@ class MediaDownloader:
                 if att.message_pk:
                     bus.publish({"type": "attachment", "message_pk": att.message_pk, "status": att.status})
                 if att.status != "done":
-                    log.warning("attachment %s not downloaded: %s %s", att_id, att.status, att.error)
+                    log.warning(texts.LOG["media"]["not_downloaded"], att_id, att.status, att.error)

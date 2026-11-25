@@ -1,0 +1,381 @@
+{
+  "forms": {
+    "BUG_INTRO": "🐞 <b>Bug report</b>\n\nAnswer the questions one by one. Cancel any time with /cancel.",
+    "BUG_ASK_DESCRIPTION": "<b>1/6. Description</b>\nA short summary of the problem.",
+    "BUG_ASK_STEPS": "<b>2/6. Steps to reproduce</b>\nThe exact actions or request body that triggers the bug:\n<i>1. …\n2. …\n3. …</i>",
+    "BUG_ASK_ACTUAL": "<b>3/6. Actual result</b>\nWhat happened?",
+    "BUG_ASK_EXPECTED": "<b>4/6. Expected result</b>\nHow should it have worked?",
+    "BUG_ASK_ENVIRONMENT": "<b>5/6. Environment</b>\nBrowser, device OS or client (Postman, terminal, Chrome, etc.).\nIf it is a regular browser, just tap the button.",
+    "BUG_ASK_ATTACHMENTS": "<b>6/6. Attachments</b>\nScreenshots, screen recordings, error logs, server responses.\nYou can send several files in a row; log text can be sent as a message too.\nWhen you are done, tap \"Done\".",
+    "BUG_ASK_ATTACHMENTS_OPTIONAL": "<b>6/6. Attachments</b> <i>(optional)</i>\nScreenshots, screen recordings, error logs, server responses.\nYou can send several files in a row; log text can be sent as a message too.\nWhen you are done, tap \"Done\", or \"Skip\" if there are no attachments.",
+    "BUG_ATTACHMENTS_REQUIRED": "At least one attachment is required: a screenshot, screen recording or log.",
+    "ENV_DEFAULT": "Browser",
+    "FEATURE_INTRO": "💡 <b>Feature request</b>\n\nThree short questions. Cancel with /cancel.\nFeature requests are published openly — everyone sees the full text.",
+    "FEATURE_ASK_IDEA": "<b>1/3. The idea</b>\nA short description of the new feature or integration.",
+    "FEATURE_ASK_PROBLEM": "<b>2/3. Problem it solves</b>\nWhy end users or third-party developers need it.",
+    "FEATURE_ASK_IMPLEMENTATION": "<b>3/3. Expected implementation</b>\nHow exactly it should work: logic, parameters, references.",
+    "CHANGELOG_ASK_VERSION": "📝 <b>Changelog</b>\n\nRelease version (e.g. <code>0.4.2</code>) or \"No version\".",
+    "CHANGELOG_ASK_TEXT": "Changelog text. Telegram formatting is preserved.",
+    "PREVIEW_HEADER": "Check before sending:",
+    "LLM_PROCESSING": "⏳ Processing the bug report through the AI model to prepare a short summary for the post. This can take up to {seconds} seconds, please wait…",
+    "SENT_BUG": "✅ Bug <code>#{rid}</code> submitted. Thank you!\n{link}",
+    "SENT_FEATURE": "✅ Feature request <code>#{rid}</code> published. Thank you!\n{link}",
+    "SENT_CHANGELOG": "✅ Changelog published.\n{link}",
+    "CANCELLED": "Cancelled.",
+    "NOTHING_TO_CANCEL": "Nothing to cancel right now.",
+    "RESTART": "Starting over.",
+    "NEED_TEXT": "Text is required, sent as a message.",
+    "TOO_LONG": "Too long: {n} characters, maximum {max}. Please shorten it.",
+    "LONG_LOG_HINT": "\nA long log is better sent as a file.",
+    "ACCEPTED_ATTACHMENT": "📎 Attachments received: {n}. Send more or tap \"Done\".",
+    "TOPIC_NOT_CONFIGURED": "The topic for this is not configured yet, message the admins.",
+    "NOT_A_MEMBER": "Reports are accepted only from beta chat members.",
+    "SKIPPED": "Skipped.",
+    "PUBLISHING": "Publishing…",
+    "PUBLISH_FAILED": "Could not publish: {error}. Try \"Send\" again.",
+    "DRAFT_LABEL_BUG": "🐞 bug report",
+    "DRAFT_LABEL_FEATURE": "💡 feature request",
+    "DRAFT_STARTED": "📝 Draft started ({label}) — {user}",
+    "NEW_BUG_TITLE": "🐞 New bug",
+    "NEW_FEATURE_TITLE": "💡 New feature request",
+    "REPORT_ANNOUNCE": "{title} <code>#{rid}</code> from {user}\n{summary}\n{link}"
+  },
+  "buttons": {
+    "BTN_SUBMIT": "✅ Send",
+    "BTN_RESTART": "🔁 Restart",
+    "BTN_CANCEL": "✖️ Cancel",
+    "BTN_DONE": "Done",
+    "BTN_SKIP": "⏭ Skip",
+    "BTN_NO_VERSION": "No version"
+  },
+  "access": {
+    "NO_ACCESS": "This bot only works for TradeCloud beta testers.\n\nYou can request beta access at @{bot}.",
+    "NO_ACCESS_SHORT": "Available to beta testers only",
+    "NO_ACCESS_BUTTON": "Request access"
+  },
+  "start": {
+    "START_TEXT": "Hi! I'm TradeCloud Curator, the beta chat bot.\n\n/bug_report — report a bug\n/feature — suggest an idea\n/cancel — cancel the form",
+    "ADMIN_HELP": "\n\n<b>For admins:</b>\n/admin — admin menu (buttons, people, drafts, notifications)\n/changelog — publish a changelog\n/status ID status [comment] — change a report's status\n/report ID — open a report\n/topic_id — (in chat) show the topic id\n/scan_topics [max_id] — find every topic and post its id into each\n/test_topics — test post to every topic from .env"
+  },
+  "group": {
+    "GROUP_GO_TO_PM": "{user}, let's continue in the bot's private chat 👉",
+    "GROUP_OPEN_PM": "{user}, open the bot first and tap Start — the form will begin on its own.",
+    "GROUP_OPEN_PM_BUTTON": "Open the bot",
+    "MEMBER_JOIN": "➕ New chat member: {user}",
+    "TOPIC_ID_INFO": "chat_id: <code>{chat}</code>\nmessage_thread_id: <code>{topic}</code>",
+    "TOPIC_ID_GENERAL_SUFFIX": " (General)",
+    "USER_STARTED": "👋 {user} opened the bot"
+  },
+  "details": {
+    "DETAILS_BUTTON": "Details",
+    "DETAILS_DENIED": "This is not available to you",
+    "REPORT_NOT_FOUND": "Report not found."
+  },
+  "edit": {
+    "EDIT_BUTTON": "✏️ Edit",
+    "EDIT_PROMPT": "This is yours — you can edit the text and attachments.",
+    "EDIT_MENU": "✏️ <b>Editing</b> <code>#{rid}</code>\nChoose what to change.",
+    "EDIT_MENU_ROW": "<b>{title}:</b> {preview}",
+    "EDIT_FIELD_BTN": "✏️ {title}",
+    "EDIT_ASK_FIELD": "<b>{title}</b>\nSend the new text. Cancel with /cancel.",
+    "EDIT_FIELD_CURRENT": "Current:\n<i>{value}</i>",
+    "EDIT_SAVED": "✅ Saved.",
+    "EDIT_DONE": "Done. Changes saved.",
+    "EDIT_DENIED": "You can only edit your own report.",
+    "EDIT_ATT_HEADER": "📎 <b>Attachments</b> ({n})\nRemove what you don't need or add new ones.",
+    "EDIT_ATT_EMPTY": "No attachments.",
+    "EDIT_ATT_ASK": "Send files (photos, videos, documents, logs). When done — tap \"Done\" or /done.",
+    "EDIT_ATT_ADDED": "📎 Added. Attachments total: {n}.",
+    "EDIT_ATT_DELETED": "Deleted.",
+    "EDIT_DELETE_BTN": "🗑 {name}",
+    "BTN_EDIT_DONE": "✅ Done",
+    "BTN_EDIT_BACK": "⬅️ Back",
+    "BTN_EDIT_ADD_ATT": "➕ Add file",
+    "BTN_EDIT_ATTACHMENTS": "📎 Attachments ({n})",
+    "EDIT_KIND_BUG": "🐞 Bug",
+    "EDIT_KIND_FEATURE": "💡 Feature request",
+    "EDIT_ANNOUNCE": "✏️ {kind} <code>#{rid}</code> edited by author {editor}"
+  },
+  "status": {
+    "STATUS_LABELS": {
+      "open": "🆕 Open",
+      "accepted": "👀 Accepted",
+      "in_progress": "🛠 In progress",
+      "fixed": "✅ Fixed",
+      "done": "✅ Done",
+      "rejected": "🚫 Rejected",
+      "duplicate": "♻️ Duplicate",
+      "cant_reproduce": "❓ Can't reproduce"
+    },
+    "STATUS_USAGE_PREFIX": "Format: <code>/status A1B2C3 fixed comment</code>\nStatuses: ",
+    "STATUS_CHANGED_AUTHOR": "🔔 The status of your {kind} <code>#{rid}</code> changed: {status}{comment}",
+    "STATUS_CHANGED": "Status <code>#{rid}</code> → {status}",
+    "STATUS_CHANGE_ANNOUNCE": "🔁 Status <code>#{rid}</code> → {status}",
+    "STATUS_CHANGE_ANNOUNCE_WEB": "🔁 Status <code>#{rid}</code> → {status} (from web)"
+  },
+  "moderation": {
+    "MOD_WARNING": "{user}, message removed: sharing contacts or luring people elsewhere is not allowed in the chat.",
+    "MOD_MUTED": "{user} is muted for {minutes} min for repeated violations.",
+    "MOD_ADMIN_REPORT": "🛡 <b>Moderation</b> · {result} · {severity}\nWho: {user} · id <code>{user_id}</code>\nFound: {reasons}\n\n<blockquote>{content}</blockquote>"
+  },
+  "reports": {
+    "POST_BUG": "🐞 <b>Bug</b> <code>#{rid}</code> · {status}\n\n{summary}\n\n{created}",
+    "POST_FEATURE": "💡 <b>Feature request</b> <code>#{rid}</code> · {status}\n\n{body}\n\n{created}",
+    "CREATED_LINE": "👤 {user}\n🕒 {dt}",
+    "PREVIEW_ATTACHMENTS": "\n\n📎 Attachments: {n}",
+    "PREVIEW_LOGS": ", text logs: {n}",
+    "FIELDS_BUG": {
+      "description": "Description",
+      "steps": "Steps to reproduce",
+      "actual": "Actual result",
+      "expected": "Expected result",
+      "environment": "Environment"
+    },
+    "FIELDS_FEATURE": {
+      "idea": "The idea",
+      "problem": "Problem it solves",
+      "implementation": "Expected implementation"
+    },
+    "FIELD_BLOCK": "<b>{title}:</b>\n{value}",
+    "KINDWORD_BUG": "bug",
+    "KINDWORD_FEATURE": "feature request",
+    "DETAILS_HEADER_BUG": "🐞 <b>Bug</b> <code>#{rid}</code>",
+    "DETAILS_HEADER_FEATURE": "💡 <b>Feature request</b> <code>#{rid}</code>",
+    "DETAILS_STATUS": "Status: {status}",
+    "DETAILS_STATUS_COMMENT": " — {comment}",
+    "DETAILS_LOG_HEADER": "<b>Log {i}:</b>",
+    "DETAILS_LOG_BODY": "<pre>{value}</pre>",
+    "DETAILS_STATS_HEADER": "<b>Stats</b>",
+    "DETAILS_AUTHOR": "Author: {user} · id <code>{user_id}</code>",
+    "DETAILS_CREATED": "Created: {dt}",
+    "DETAILS_UPDATED": "Updated: {dt}",
+    "DETAILS_DURATION": "Time to fill the form: {duration}",
+    "DETAILS_ATTACHMENTS": "Attachments: {total} (saved to disk: {saved})",
+    "DETAILS_TEXT_LOGS": "Text logs: {n}",
+    "DETAILS_TOTAL": "Total {kind} from this author: {n}",
+    "DETAILS_TOTAL_KIND_BUG": "bugs",
+    "DETAILS_TOTAL_KIND_FEATURE": "feature requests",
+    "DETAILS_POST_LINK": "<a href=\"{link}\">Post in chat</a>",
+    "DURATION_HM": "{h} h {m} min",
+    "DURATION_MS": "{m} min {s} s",
+    "DURATION_S": "{s} s"
+  },
+  "changelog": {
+    "CHANGELOG_TITLE": "📝 <b>Changelog</b>",
+    "CHANGELOG_TITLE_VERSION": "📝 <b>Changelog</b> · <code>{version}</code>",
+    "CHANGELOG_POST": "{title}\n\n{body}\n\n🕒 {dt}",
+    "CHANGELOG_PUBLISH_FAILED": "Could not publish: {error}"
+  },
+  "admin": {
+    "ADMIN_HOME": "<b>Admin menu</b>\nPick a section.",
+    "ADMIN_HOME_BUTTONS": "🔘 Form buttons",
+    "ADMIN_HOME_PEOPLE": "👥 Connected people",
+    "ADMIN_HOME_DRAFTS": "📝 Drafts",
+    "ADMIN_HOME_NOTIFY": "🔔 Notifications",
+    "ADMIN_HOME_LOGS": "📋 Logs topic",
+    "ADMIN_BACK": "⬅️ Back",
+    "ADMIN_BUTTONS_LIST": "<b>Form buttons</b>\nPick a step to configure its quick-reply buttons.",
+    "ADMIN_BUTTONS_ROW": "{i}. {label} → <code>{value}</code>",
+    "ADMIN_BUTTONS_EMPTY": "<i>No buttons.</i>",
+    "ADMIN_BUTTONS_DELETE": "🗑 {label}",
+    "ADMIN_BUTTONS_ADD": "➕ Add button",
+    "ADMIN_BUTTONS_ADD_PROMPT": "Step \"{step}\". Send the button <b>label</b> (its caption). /cancel to abort.",
+    "ADMIN_BUTTONS_ASK_VALUE": "Now send the <b>value</b> — the text that fills the answer when tapped.",
+    "ADMIN_BUTTONS_ADDED": "✅ Button added.",
+    "ADMIN_NOTIFY_LIST": "<b>Admin notifications</b>\nDetailed, in private chat / log chat. Tap to toggle.",
+    "ADMIN_LOGS_LIST": "<b>Logs topic</b>\nShort entries (no details — no who/what/where) in the logs topic.\nTap to toggle an event.",
+    "ADMIN_TOGGLE_ON": "On",
+    "ADMIN_TOGGLE_OFF": "Off",
+    "ADMIN_PEOPLE_LIST": "<b>Connected people</b> ({total})\n🤖 — opened the bot's private chat. Pick a person for actions.",
+    "ADMIN_PEOPLE_ROW_STARTED": "🤖",
+    "ADMIN_PEOPLE_ROW_PLAIN": "·",
+    "ADMIN_DELETED": "Deleted",
+    "ADMIN_MEMBER_NAME": "👤 {user}",
+    "ADMIN_MEMBER_STATUS": "id <code>{user_id}</code> · chat status: <b>{status}</b>",
+    "ADMIN_MEMBER_MESSAGES": "Messages in chat: {n}",
+    "ADMIN_MEMBER_CONFIRM": "\n⚠️ Confirm: <b>{action}</b> for {name}?",
+    "ADMIN_MEMBER_CONFIRM_YES": "✅ Yes, {label}",
+    "ADMIN_MEMBER_CANCEL": "✖️ Cancel",
+    "ADMIN_MEMBER_MUTE": "🔇 Mute 60 min",
+    "ADMIN_MEMBER_UNMUTE": "🔊 Unmute",
+    "ADMIN_MEMBER_BAN": "⛔️ Ban",
+    "ADMIN_MEMBER_KICK": "👢 Kick",
+    "ADMIN_MEMBER_UNBAN": "♻️ Unban",
+    "ADMIN_MEMBER_DONE": "Done: {label}",
+    "ADMIN_MEMBER_FAILED": "Failed: {error}",
+    "ADMIN_DRAFTS_LIST": "<b>Drafts</b> ({total})\nUnfinished forms. Pick one to view.",
+    "ADMIN_DRAFTS_ROW_BUG": "🐞",
+    "ADMIN_DRAFTS_ROW_FEATURE": "💡",
+    "ADMIN_DRAFT_NOT_FOUND": "Draft not found or already finished.",
+    "ADMIN_DRAFT_KIND_BUG": "🐞 Bug",
+    "ADMIN_DRAFT_KIND_FEATURE": "💡 Feature",
+    "ADMIN_DRAFT_HEADER": "{kind} · draft — {user}",
+    "ADMIN_DRAFT_TIMING": "Started: {started} · updated: {updated}",
+    "ADMIN_DRAFT_ATTACHMENTS": "Attachments: {n}",
+    "ADMIN_DRAFT_EMPTY": "<i>Nothing filled in yet.</i>",
+    "ADMIN_DRAFT_LOGS": "<b>Logs:</b> {n} item(s)",
+    "ADMIN_DRAFT_FIELD": "<b>{title}:</b> {value}",
+    "SINCE_NONE": "—",
+    "SINCE_HM": "{h} h {m} min ago",
+    "SINCE_M": "{m} min ago",
+    "SINCE_S": "{s} s ago",
+    "FIELD_LABELS": {
+      "description": "Description",
+      "steps": "Steps",
+      "actual": "Actual",
+      "expected": "Expected",
+      "environment": "Environment",
+      "logs": "Logs",
+      "idea": "Idea",
+      "problem": "Problem",
+      "implementation": "Implementation",
+      "summary": "Summary"
+    },
+    "BUTTON_STEPS": {
+      "description": "Bug · Description",
+      "steps": "Bug · Steps",
+      "actual": "Bug · Actual",
+      "expected": "Bug · Expected",
+      "environment": "Bug · Environment",
+      "idea": "Feature · Idea",
+      "problem": "Feature · Problem",
+      "implementation": "Feature · Implementation"
+    }
+  },
+  "notify": {
+    "NOTIFY_EVENTS": {
+      "user_start": "Person opened the bot",
+      "member_join": "New chat member",
+      "draft_new": "New form draft",
+      "report_bug": "New bug report",
+      "report_feature": "New feature request",
+      "report_edited": "Report edited by author",
+      "status_change": "Report status change"
+    },
+    "LOG_LABELS": {
+      "user_start": "👋 A new user opened the bot",
+      "member_join": "➕ New chat member",
+      "draft_new": "📝 A new form draft was started",
+      "report_bug": "🐞 New bug report",
+      "report_feature": "💡 New feature request",
+      "report_edited": "✏️ Report edited",
+      "status_change": "🔁 Report status changed"
+    }
+  },
+  "members": {
+    "ACTION_LABELS": {
+      "mute": "muted",
+      "unmute": "unmuted",
+      "ban": "banned",
+      "unban": "unbanned",
+      "kick": "kicked"
+    }
+  },
+  "topic_scan": {
+    "SCAN_POST": "🧭 Topic{title}{general}\nmessage_thread_id: <code>{thread_id}</code>",
+    "SCAN_POST_TITLE": " \"{name}\"",
+    "SCAN_POST_GENERAL": " (General)",
+    "SCAN_STARTED": "Scanning topics (up to {max}), posting each found topic's id into it…",
+    "SCAN_NONE": "No topics found. Check that the bot is an admin in the chat, CHAT_ID is correct, and topics are enabled.",
+    "SCAN_HEADER": "Topics found: {n} (swept up to {max})",
+    "SCAN_ROW": "• <code>{thread_id}</code> — {name}",
+    "SCAN_ROW_ENV": " → <code>{env_key}</code>",
+    "SCAN_ROW_UNNAMED": "unnamed",
+    "SCAN_ENV_BLOCK": "\n\nFor .env:\n<pre>{snippet}</pre>",
+    "TEST_HEADER": "Test posts to the .env topics:",
+    "TEST_POST": "Topic {thread_id} - {name}",
+    "TEST_NOT_SET": "⚪️ {env_key}: not set",
+    "TEST_ERROR": "❌ {env_key}={thread_id}: {error}",
+    "TEST_OK": "✅ {env_key}={thread_id} - {name}{mismatch}",
+    "TEST_MISMATCH": " (in .env it is {label})",
+    "GENERAL_NAME": "General",
+    "CONFIGURED_TOPICS": {
+      "topic_info_id": "INFO",
+      "topic_changelog_id": "Changelog",
+      "topic_bugs_id": "Bug Reports",
+      "topic_features_id": "Feature Requests",
+      "topic_main_id": "Main"
+    }
+  },
+  "web": {
+    "ERR_MUST_BE_INT": "{name} must be int",
+    "ERR_BOT_UNAVAILABLE": "bot unavailable",
+    "ERR_BAD_JSON": "bad json",
+    "ERR_UNKNOWN_STATUS": "unknown status",
+    "ERR_UNKNOWN_ACTION": "unknown action",
+    "AUTH_REALM": "TradeCloud Curator"
+  },
+  "commands": {
+    "bug_report": "Report a bug",
+    "feature": "Suggest an idea",
+    "cancel": "Cancel the form",
+    "admin": "Admin menu",
+    "changelog": "Publish a changelog",
+    "status": "Report status: ID status [comment]",
+    "report": "Open a report by ID",
+    "scan_topics": "Find topics and post their ids",
+    "test_topics": "Test post to every topic from .env"
+  },
+  "llm": {
+    "BUG_SUMMARY_SYSTEM": "You write a short public summary of a bug report for a beta testers' chat.\n\nTask: 1-2 short sentences in English that make clear WHAT is broken and WHERE (section, feature, action).\n\nMust not include:\n- tokens, keys, passwords, cookies, logins, emails, phone numbers, links, IP addresses, domains;\n- order, account, listing or transaction IDs, amounts and balances;\n- people's names and handles;\n- logs, response codes, request bodies, stack traces, file paths;\n- steps to reproduce, browser/OS versions, guesses about the cause, or advice.\n\nWrite neutrally, in the third person, without addressing the reader, without intros like \"The user reports\".\nDo not invent anything not present in the text. Reply with the text only, no quotes, markdown or prefixes.",
+    "BUG_SUMMARY_USER": "The full bug report (use all of it to grasp the essence, but carry only the essence into the reply):\n\nDescription: {description}\n\nSteps to reproduce:\n{steps}\n\nActual result: {actual}\nExpected result: {expected}\nEnvironment: {environment}\n\nLogs and attachment comments:\n{logs}\n\nSummary (up to {limit} characters):"
+  },
+  "log": {
+    "commands": {
+      "set_chat_failed": "cannot set commands for chat %s (bot not in chat?): %s",
+      "clear_shared_failed": "cannot clear shared commands: %s",
+      "set_admin_failed": "cannot set commands for admin %s",
+      "sync_failed": "cannot sync commands for %s: %s"
+    },
+    "main": {
+      "rights_check_failed": "cannot check bot rights in chat %s: %s",
+      "not_admin": "bot is NOT an administrator of chat %s (status %s) — deleting commands and moderation will not work",
+      "no_delete_right": "bot lacks the 'Delete messages' right in chat %s — commands (/bug_report etc.) are not deleted; grant it in the chat settings",
+      "started": "started as @%s, chat %s"
+    },
+    "reports": {
+      "edit_post_failed": "cannot edit post for %s: %s",
+      "album_failed": "send album failed: %s",
+      "attachment_failed": "send attachment %s failed: %s"
+    },
+    "llm": {
+      "using": "LLM: using %s",
+      "unreachable": "LLM: no reachable server among %s",
+      "summary_failed": "LLM summary failed, fallback to truncate: %s"
+    },
+    "notify": {
+      "log_topic_failed": "cannot write log to topic %s: %s",
+      "admin_failed": "notify %s failed: %s"
+    },
+    "moderation": {
+      "delete_failed": "cannot delete message %s: %s",
+      "mute_failed": "cannot mute %s: %s"
+    },
+    "topic_scan": {
+      "flood_wait": "flood wait %ss",
+      "thread_skip": "thread %s: %s",
+      "found": "found topic %s %r"
+    },
+    "member_tags": {
+      "get_failed": "get_chat_member(%s, %s) failed: %s"
+    },
+    "media": {
+      "not_downloaded": "attachment %s not downloaded: %s %s"
+    },
+    "backup": {
+      "failed": "backup failed for update %s"
+    },
+    "group": {
+      "delete_command_failed": "cannot delete command in group (bot needs the 'Delete messages' right): %s"
+    },
+    "forms": {
+      "publish_failed": "publish failed"
+    },
+    "db": {
+      "added_column": "db: added column %s.%s"
+    },
+    "web": {
+      "started": "web viewer on http://%s:%s"
+    }
+  }
+}

@@ -1,8 +1,10 @@
 import secrets
 
-# Без похожих символов (0/O, 1/I/L), чтобы ID легко было продиктовать и переписать.
-ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-ID_LENGTH = 6
+from ..config import CONFIG
+
+# No look-alike characters (0/O, 1/I/L), so an id is easy to dictate and retype.
+ALPHABET = CONFIG["ids"]["alphabet"]
+ID_LENGTH = CONFIG["ids"]["length"]
 
 
 def new_public_id() -> str:

@@ -1,113 +1,281 @@
-"""Все тексты бота в одном месте. HTML parse mode."""
+"""All bot-facing text, loaded from text.json at the project root. HTML parse mode.
 
-BUG_INTRO = (
-    "🐞 <b>Баг-репорт</b>\n\n"
-    "Отвечай на вопросы по очереди. Отменить в любой момент — /cancel."
-)
-BUG_ASK_DESCRIPTION = "<b>1/6. Описание</b>\nКраткая суть проблемы."
-BUG_ASK_STEPS = (
-    "<b>2/6. Шаги воспроизведения</b>\n"
-    "Конкретные действия или тело запроса для вызова бага:\n"
-    "<i>1. …\n2. …\n3. …</i>"
-)
-BUG_ASK_ACTUAL = "<b>3/6. Фактический результат</b>\nЧто произошло?"
-BUG_ASK_EXPECTED = "<b>4/6. Ожидаемый результат</b>\nКак должно было работать?"
-BUG_ASK_ENVIRONMENT = (
-    "<b>5/6. Окружение</b>\n"
-    "Браузер, ОС устройства или клиент (Postman, терминал, Chrome и т.п.).\n"
-    "Если это обычный браузер — просто нажми кнопку."
-)
-BUG_ASK_ATTACHMENTS = (
-    "<b>6/6. Вложения</b>\n"
-    "Скриншоты интерфейса, записи экрана, логи ошибок, ответы сервера.\n"
-    "Можно несколько файлов подряд, текст логов тоже можно прислать сообщением.\n"
-    "Когда всё отправишь — жми «Готово»."
-)
-BUG_ATTACHMENTS_REQUIRED = "Нужно хотя бы одно вложение: скриншот, запись экрана или лог."
-ENV_DEFAULT = "Браузер"
+text.json is the single place to edit anything the bot writes — chat messages, buttons, admin-menu
+labels, the backup posts, and the developer log lines (see LOG). The names below mirror its keys.
+"""
 
-FEATURE_INTRO = (
-    "💡 <b>Предложение</b>\n\n"
-    "Три коротких вопроса. Отменить — /cancel.\n"
-    "Предложения публикуются открыто, все увидят текст целиком."
-)
-FEATURE_ASK_IDEA = "<b>1/3. Суть идеи</b>\nКраткое описание новой функции или интеграции."
-FEATURE_ASK_PROBLEM = (
-    "<b>2/3. Какую проблему решает</b>\n"
-    "Зачем это нужно конечным пользователям или сторонним разработчикам."
-)
-FEATURE_ASK_IMPLEMENTATION = (
-    "<b>3/3. Ожидаемая реализация</b>\n"
-    "Как именно это должно работать: логика, параметры, референсы."
-)
+from __future__ import annotations
 
-CHANGELOG_ASK_VERSION = "📝 <b>Changelog</b>\n\nВерсия релиза (например <code>0.4.2</code>) или «Без версии»."
-CHANGELOG_ASK_TEXT = "Текст изменений. Форматирование Telegram сохранится."
+import json
+from pathlib import Path
+from typing import Any
 
-PREVIEW_HEADER = "Проверь перед отправкой:"
-LLM_PROCESSING = "⏳ Обрабатываю баг-репорт через ИИ-модель — готовлю короткое описание для поста. Это может занять до {seconds} секунд, подожди немного…"
-SENT_BUG = "✅ Баг <code>#{rid}</code> отправлен. Спасибо!\n{link}"
-SENT_FEATURE = "✅ Предложение <code>#{rid}</code> опубликовано. Спасибо!\n{link}"
-SENT_CHANGELOG = "✅ Changelog опубликован.\n{link}"
-CANCELLED = "Отменено."
-NOTHING_TO_CANCEL = "Сейчас нечего отменять."
-RESTART = "Начнём заново."
-NEED_TEXT = "Нужен текст сообщением."
-TOO_LONG = "Слишком длинно: {n} символов, максимум {max}. Сократи, пожалуйста."
-ACCEPTED_ATTACHMENT = "📎 Принято вложений: {n}. Ещё или «Готово»."
-TOPIC_NOT_CONFIGURED = "Топик для этого пока не настроен, напиши админам."
-NOT_A_MEMBER = "Репорты принимаются только от участников бета-чата."
+TEXT_PATH = Path(__file__).resolve().parent.parent / "text.json"
+_T: dict[str, Any] = json.loads(TEXT_PATH.read_text("utf-8"))
 
-GROUP_GO_TO_PM = "{user}, продолжим в личке с ботом 👉"
-GROUP_OPEN_PM = "{user}, сначала открой бота и нажми Start — анкета начнётся сама."
-GROUP_OPEN_PM_BUTTON = "Открыть бота"
+_forms = _T["forms"]
+_buttons = _T["buttons"]
+_access = _T["access"]
+_start = _T["start"]
+_group = _T["group"]
+_details = _T["details"]
+_edit = _T["edit"]
+_status = _T["status"]
+_mod = _T["moderation"]
+_reports = _T["reports"]
+_changelog = _T["changelog"]
+_admin = _T["admin"]
+_notify = _T["notify"]
+_members = _T["members"]
+_scan = _T["topic_scan"]
+_web = _T["web"]
+_llm = _T["llm"]
 
-DETAILS_BUTTON = "Подробнее"
-DETAILS_DENIED = "Вам это не доступно"
-REPORT_NOT_FOUND = "Репорт не найден."
+# ---------------------------------------------------------------- forms
+BUG_INTRO = _forms["BUG_INTRO"]
+BUG_ASK_DESCRIPTION = _forms["BUG_ASK_DESCRIPTION"]
+BUG_ASK_STEPS = _forms["BUG_ASK_STEPS"]
+BUG_ASK_ACTUAL = _forms["BUG_ASK_ACTUAL"]
+BUG_ASK_EXPECTED = _forms["BUG_ASK_EXPECTED"]
+BUG_ASK_ENVIRONMENT = _forms["BUG_ASK_ENVIRONMENT"]
+BUG_ASK_ATTACHMENTS = _forms["BUG_ASK_ATTACHMENTS"]
+BUG_ASK_ATTACHMENTS_OPTIONAL = _forms["BUG_ASK_ATTACHMENTS_OPTIONAL"]
+BUG_ATTACHMENTS_REQUIRED = _forms["BUG_ATTACHMENTS_REQUIRED"]
+ENV_DEFAULT = _forms["ENV_DEFAULT"]
+FEATURE_INTRO = _forms["FEATURE_INTRO"]
+FEATURE_ASK_IDEA = _forms["FEATURE_ASK_IDEA"]
+FEATURE_ASK_PROBLEM = _forms["FEATURE_ASK_PROBLEM"]
+FEATURE_ASK_IMPLEMENTATION = _forms["FEATURE_ASK_IMPLEMENTATION"]
+CHANGELOG_ASK_VERSION = _forms["CHANGELOG_ASK_VERSION"]
+CHANGELOG_ASK_TEXT = _forms["CHANGELOG_ASK_TEXT"]
+PREVIEW_HEADER = _forms["PREVIEW_HEADER"]
+LLM_PROCESSING = _forms["LLM_PROCESSING"]
+SENT_BUG = _forms["SENT_BUG"]
+SENT_FEATURE = _forms["SENT_FEATURE"]
+SENT_CHANGELOG = _forms["SENT_CHANGELOG"]
+CANCELLED = _forms["CANCELLED"]
+NOTHING_TO_CANCEL = _forms["NOTHING_TO_CANCEL"]
+RESTART = _forms["RESTART"]
+NEED_TEXT = _forms["NEED_TEXT"]
+TOO_LONG = _forms["TOO_LONG"]
+LONG_LOG_HINT = _forms["LONG_LOG_HINT"]
+ACCEPTED_ATTACHMENT = _forms["ACCEPTED_ATTACHMENT"]
+TOPIC_NOT_CONFIGURED = _forms["TOPIC_NOT_CONFIGURED"]
+NOT_A_MEMBER = _forms["NOT_A_MEMBER"]
+SKIPPED = _forms["SKIPPED"]
+PUBLISHING = _forms["PUBLISHING"]
+PUBLISH_FAILED = _forms["PUBLISH_FAILED"]
+DRAFT_LABEL_BUG = _forms["DRAFT_LABEL_BUG"]
+DRAFT_LABEL_FEATURE = _forms["DRAFT_LABEL_FEATURE"]
+DRAFT_STARTED = _forms["DRAFT_STARTED"]
+NEW_BUG_TITLE = _forms["NEW_BUG_TITLE"]
+NEW_FEATURE_TITLE = _forms["NEW_FEATURE_TITLE"]
+REPORT_ANNOUNCE = _forms["REPORT_ANNOUNCE"]
 
-NO_ACCESS = (
-    "Этот бот работает только для участников бета-теста TradeCloud.\n\n"
-    "Запросить доступ к бете можно в @{bot}."
-)
-NO_ACCESS_SHORT = "Доступно только участникам бета-теста"
-NO_ACCESS_BUTTON = "Запросить доступ"
+# ---------------------------------------------------------------- flow buttons
+BTN_SUBMIT = _buttons["BTN_SUBMIT"]
+BTN_RESTART = _buttons["BTN_RESTART"]
+BTN_CANCEL = _buttons["BTN_CANCEL"]
+BTN_DONE = _buttons["BTN_DONE"]
+BTN_SKIP = _buttons["BTN_SKIP"]
+BTN_NO_VERSION = _buttons["BTN_NO_VERSION"]
 
-START_TEXT = (
-    "Привет! Я бот бета-чата TradeCloud.\n\n"
-    "/bug_report — сообщить о баге\n"
-    "/feature — предложить идею\n"
-    "/cancel — отменить анкету"
-)
-ADMIN_HELP = (
-    "\n\n<b>Админам:</b>\n"
-    "/changelog — опубликовать changelog\n"
-    "/status ID статус [комментарий] — сменить статус репорта\n"
-    "/report ID — открыть репорт\n"
-    "/topic_id — (в чате) показать ID топика\n"
-    "/scan_topics [макс_id] — найти все топики и запостить в каждый его ID\n"
-    "/test_topics — тестовый пост во все топики из .env"
-)
+# ---------------------------------------------------------------- private-chat access
+NO_ACCESS = _access["NO_ACCESS"]
+NO_ACCESS_SHORT = _access["NO_ACCESS_SHORT"]
+NO_ACCESS_BUTTON = _access["NO_ACCESS_BUTTON"]
 
-MOD_WARNING = "{user}, сообщение удалено: в чате нельзя обмениваться контактами и зазывать в другие места."
-MOD_MUTED = "{user} получает мут на {minutes} мин за повторные нарушения."
+# ---------------------------------------------------------------- /start
+START_TEXT = _start["START_TEXT"]
+ADMIN_HELP = _start["ADMIN_HELP"]
 
-STATUS_LABELS = {
-    "open": "🆕 Открыт",
-    "accepted": "👀 Принят",
-    "in_progress": "🛠 В работе",
-    "fixed": "✅ Исправлен",
-    "done": "✅ Сделано",
-    "rejected": "🚫 Отклонён",
-    "duplicate": "♻️ Дубликат",
-    "cant_reproduce": "❓ Не воспроизводится",
-}
-STATUS_USAGE = "Формат: <code>/status A1B2C3 fixed комментарий</code>\nСтатусы: " + ", ".join(STATUS_LABELS)
-STATUS_CHANGED_AUTHOR = "Статус вашего репорта <code>#{rid}</code>: {status}{comment}"
-STATUS_CHANGED = "Статус <code>#{rid}</code> → {status}"
+# ---------------------------------------------------------------- group
+GROUP_GO_TO_PM = _group["GROUP_GO_TO_PM"]
+GROUP_OPEN_PM = _group["GROUP_OPEN_PM"]
+GROUP_OPEN_PM_BUTTON = _group["GROUP_OPEN_PM_BUTTON"]
+MEMBER_JOIN = _group["MEMBER_JOIN"]
+TOPIC_ID_INFO = _group["TOPIC_ID_INFO"]
+TOPIC_ID_GENERAL_SUFFIX = _group["TOPIC_ID_GENERAL_SUFFIX"]
+USER_STARTED = _group["USER_STARTED"]
 
-BTN_SUBMIT = "✅ Отправить"
-BTN_RESTART = "🔁 Заново"
-BTN_CANCEL = "✖️ Отмена"
-BTN_DONE = "Готово"
-BTN_NO_VERSION = "Без версии"
+# ---------------------------------------------------------------- "Details"
+DETAILS_BUTTON = _details["DETAILS_BUTTON"]
+DETAILS_DENIED = _details["DETAILS_DENIED"]
+REPORT_NOT_FOUND = _details["REPORT_NOT_FOUND"]
+
+# ---------------------------------------------------------------- editing own reports
+EDIT_BUTTON = _edit["EDIT_BUTTON"]
+EDIT_PROMPT = _edit["EDIT_PROMPT"]
+EDIT_MENU = _edit["EDIT_MENU"]
+EDIT_MENU_ROW = _edit["EDIT_MENU_ROW"]
+EDIT_FIELD_BTN = _edit["EDIT_FIELD_BTN"]
+EDIT_ASK_FIELD = _edit["EDIT_ASK_FIELD"]
+EDIT_FIELD_CURRENT = _edit["EDIT_FIELD_CURRENT"]
+EDIT_SAVED = _edit["EDIT_SAVED"]
+EDIT_DONE = _edit["EDIT_DONE"]
+EDIT_DENIED = _edit["EDIT_DENIED"]
+EDIT_ATT_HEADER = _edit["EDIT_ATT_HEADER"]
+EDIT_ATT_EMPTY = _edit["EDIT_ATT_EMPTY"]
+EDIT_ATT_ASK = _edit["EDIT_ATT_ASK"]
+EDIT_ATT_ADDED = _edit["EDIT_ATT_ADDED"]
+EDIT_ATT_DELETED = _edit["EDIT_ATT_DELETED"]
+EDIT_DELETE_BTN = _edit["EDIT_DELETE_BTN"]
+BTN_EDIT_DONE = _edit["BTN_EDIT_DONE"]
+BTN_EDIT_BACK = _edit["BTN_EDIT_BACK"]
+BTN_EDIT_ADD_ATT = _edit["BTN_EDIT_ADD_ATT"]
+BTN_EDIT_ATTACHMENTS = _edit["BTN_EDIT_ATTACHMENTS"]
+EDIT_KIND_BUG = _edit["EDIT_KIND_BUG"]
+EDIT_KIND_FEATURE = _edit["EDIT_KIND_FEATURE"]
+EDIT_ANNOUNCE = _edit["EDIT_ANNOUNCE"]
+
+# ---------------------------------------------------------------- statuses
+STATUS_LABELS: dict[str, str] = _status["STATUS_LABELS"]
+STATUS_USAGE = _status["STATUS_USAGE_PREFIX"] + ", ".join(STATUS_LABELS)
+STATUS_CHANGED_AUTHOR = _status["STATUS_CHANGED_AUTHOR"]
+STATUS_CHANGED = _status["STATUS_CHANGED"]
+STATUS_CHANGE_ANNOUNCE = _status["STATUS_CHANGE_ANNOUNCE"]
+STATUS_CHANGE_ANNOUNCE_WEB = _status["STATUS_CHANGE_ANNOUNCE_WEB"]
+
+# ---------------------------------------------------------------- moderation
+MOD_WARNING = _mod["MOD_WARNING"]
+MOD_MUTED = _mod["MOD_MUTED"]
+MOD_ADMIN_REPORT = _mod["MOD_ADMIN_REPORT"]
+
+# ---------------------------------------------------------------- report posts and the "Details" card
+POST_BUG = _reports["POST_BUG"]
+POST_FEATURE = _reports["POST_FEATURE"]
+CREATED_LINE = _reports["CREATED_LINE"]
+PREVIEW_ATTACHMENTS = _reports["PREVIEW_ATTACHMENTS"]
+PREVIEW_LOGS = _reports["PREVIEW_LOGS"]
+FIELDS_BUG: dict[str, str] = _reports["FIELDS_BUG"]
+FIELDS_FEATURE: dict[str, str] = _reports["FIELDS_FEATURE"]
+FIELD_BLOCK = _reports["FIELD_BLOCK"]
+KINDWORD_BUG = _reports["KINDWORD_BUG"]
+KINDWORD_FEATURE = _reports["KINDWORD_FEATURE"]
+DETAILS_HEADER_BUG = _reports["DETAILS_HEADER_BUG"]
+DETAILS_HEADER_FEATURE = _reports["DETAILS_HEADER_FEATURE"]
+DETAILS_STATUS = _reports["DETAILS_STATUS"]
+DETAILS_STATUS_COMMENT = _reports["DETAILS_STATUS_COMMENT"]
+DETAILS_LOG_HEADER = _reports["DETAILS_LOG_HEADER"]
+DETAILS_LOG_BODY = _reports["DETAILS_LOG_BODY"]
+DETAILS_STATS_HEADER = _reports["DETAILS_STATS_HEADER"]
+DETAILS_AUTHOR = _reports["DETAILS_AUTHOR"]
+DETAILS_CREATED = _reports["DETAILS_CREATED"]
+DETAILS_UPDATED = _reports["DETAILS_UPDATED"]
+DETAILS_DURATION = _reports["DETAILS_DURATION"]
+DETAILS_ATTACHMENTS = _reports["DETAILS_ATTACHMENTS"]
+DETAILS_TEXT_LOGS = _reports["DETAILS_TEXT_LOGS"]
+DETAILS_TOTAL = _reports["DETAILS_TOTAL"]
+DETAILS_TOTAL_KIND_BUG = _reports["DETAILS_TOTAL_KIND_BUG"]
+DETAILS_TOTAL_KIND_FEATURE = _reports["DETAILS_TOTAL_KIND_FEATURE"]
+DETAILS_POST_LINK = _reports["DETAILS_POST_LINK"]
+DURATION_HM = _reports["DURATION_HM"]
+DURATION_MS = _reports["DURATION_MS"]
+DURATION_S = _reports["DURATION_S"]
+
+# ---------------------------------------------------------------- changelog post
+CHANGELOG_TITLE = _changelog["CHANGELOG_TITLE"]
+CHANGELOG_TITLE_VERSION = _changelog["CHANGELOG_TITLE_VERSION"]
+CHANGELOG_POST = _changelog["CHANGELOG_POST"]
+CHANGELOG_PUBLISH_FAILED = _changelog["CHANGELOG_PUBLISH_FAILED"]
+
+# ---------------------------------------------------------------- admin menu
+ADMIN_HOME = _admin["ADMIN_HOME"]
+ADMIN_HOME_BUTTONS = _admin["ADMIN_HOME_BUTTONS"]
+ADMIN_HOME_PEOPLE = _admin["ADMIN_HOME_PEOPLE"]
+ADMIN_HOME_DRAFTS = _admin["ADMIN_HOME_DRAFTS"]
+ADMIN_HOME_NOTIFY = _admin["ADMIN_HOME_NOTIFY"]
+ADMIN_HOME_LOGS = _admin["ADMIN_HOME_LOGS"]
+ADMIN_BACK = _admin["ADMIN_BACK"]
+ADMIN_BUTTONS_LIST = _admin["ADMIN_BUTTONS_LIST"]
+ADMIN_BUTTONS_ROW = _admin["ADMIN_BUTTONS_ROW"]
+ADMIN_BUTTONS_EMPTY = _admin["ADMIN_BUTTONS_EMPTY"]
+ADMIN_BUTTONS_DELETE = _admin["ADMIN_BUTTONS_DELETE"]
+ADMIN_BUTTONS_ADD = _admin["ADMIN_BUTTONS_ADD"]
+ADMIN_BUTTONS_ADD_PROMPT = _admin["ADMIN_BUTTONS_ADD_PROMPT"]
+ADMIN_BUTTONS_ASK_VALUE = _admin["ADMIN_BUTTONS_ASK_VALUE"]
+ADMIN_BUTTONS_ADDED = _admin["ADMIN_BUTTONS_ADDED"]
+ADMIN_NOTIFY_LIST = _admin["ADMIN_NOTIFY_LIST"]
+ADMIN_LOGS_LIST = _admin["ADMIN_LOGS_LIST"]
+ADMIN_TOGGLE_ON = _admin["ADMIN_TOGGLE_ON"]
+ADMIN_TOGGLE_OFF = _admin["ADMIN_TOGGLE_OFF"]
+ADMIN_PEOPLE_LIST = _admin["ADMIN_PEOPLE_LIST"]
+ADMIN_PEOPLE_ROW_STARTED = _admin["ADMIN_PEOPLE_ROW_STARTED"]
+ADMIN_PEOPLE_ROW_PLAIN = _admin["ADMIN_PEOPLE_ROW_PLAIN"]
+ADMIN_DELETED = _admin["ADMIN_DELETED"]
+ADMIN_MEMBER_NAME = _admin["ADMIN_MEMBER_NAME"]
+ADMIN_MEMBER_STATUS = _admin["ADMIN_MEMBER_STATUS"]
+ADMIN_MEMBER_MESSAGES = _admin["ADMIN_MEMBER_MESSAGES"]
+ADMIN_MEMBER_CONFIRM = _admin["ADMIN_MEMBER_CONFIRM"]
+ADMIN_MEMBER_CONFIRM_YES = _admin["ADMIN_MEMBER_CONFIRM_YES"]
+ADMIN_MEMBER_CANCEL = _admin["ADMIN_MEMBER_CANCEL"]
+ADMIN_MEMBER_MUTE = _admin["ADMIN_MEMBER_MUTE"]
+ADMIN_MEMBER_UNMUTE = _admin["ADMIN_MEMBER_UNMUTE"]
+ADMIN_MEMBER_BAN = _admin["ADMIN_MEMBER_BAN"]
+ADMIN_MEMBER_KICK = _admin["ADMIN_MEMBER_KICK"]
+ADMIN_MEMBER_UNBAN = _admin["ADMIN_MEMBER_UNBAN"]
+ADMIN_MEMBER_DONE = _admin["ADMIN_MEMBER_DONE"]
+ADMIN_MEMBER_FAILED = _admin["ADMIN_MEMBER_FAILED"]
+ADMIN_DRAFTS_LIST = _admin["ADMIN_DRAFTS_LIST"]
+ADMIN_DRAFTS_ROW_BUG = _admin["ADMIN_DRAFTS_ROW_BUG"]
+ADMIN_DRAFTS_ROW_FEATURE = _admin["ADMIN_DRAFTS_ROW_FEATURE"]
+ADMIN_DRAFT_NOT_FOUND = _admin["ADMIN_DRAFT_NOT_FOUND"]
+ADMIN_DRAFT_KIND_BUG = _admin["ADMIN_DRAFT_KIND_BUG"]
+ADMIN_DRAFT_KIND_FEATURE = _admin["ADMIN_DRAFT_KIND_FEATURE"]
+ADMIN_DRAFT_HEADER = _admin["ADMIN_DRAFT_HEADER"]
+ADMIN_DRAFT_TIMING = _admin["ADMIN_DRAFT_TIMING"]
+ADMIN_DRAFT_ATTACHMENTS = _admin["ADMIN_DRAFT_ATTACHMENTS"]
+ADMIN_DRAFT_EMPTY = _admin["ADMIN_DRAFT_EMPTY"]
+ADMIN_DRAFT_LOGS = _admin["ADMIN_DRAFT_LOGS"]
+ADMIN_DRAFT_FIELD = _admin["ADMIN_DRAFT_FIELD"]
+SINCE_NONE = _admin["SINCE_NONE"]
+SINCE_HM = _admin["SINCE_HM"]
+SINCE_M = _admin["SINCE_M"]
+SINCE_S = _admin["SINCE_S"]
+FIELD_LABELS: dict[str, str] = _admin["FIELD_LABELS"]
+BUTTON_STEPS: dict[str, str] = _admin["BUTTON_STEPS"]
+
+# ---------------------------------------------------------------- notifications and logs topic
+NOTIFY_EVENTS: dict[str, str] = _notify["NOTIFY_EVENTS"]
+LOG_LABELS: dict[str, str] = _notify["LOG_LABELS"]
+
+# ---------------------------------------------------------------- member actions
+ACTION_LABELS: dict[str, str] = _members["ACTION_LABELS"]
+
+# ---------------------------------------------------------------- topic discovery
+SCAN_POST = _scan["SCAN_POST"]
+SCAN_POST_TITLE = _scan["SCAN_POST_TITLE"]
+SCAN_POST_GENERAL = _scan["SCAN_POST_GENERAL"]
+SCAN_STARTED = _scan["SCAN_STARTED"]
+SCAN_NONE = _scan["SCAN_NONE"]
+SCAN_HEADER = _scan["SCAN_HEADER"]
+SCAN_ROW = _scan["SCAN_ROW"]
+SCAN_ROW_ENV = _scan["SCAN_ROW_ENV"]
+SCAN_ROW_UNNAMED = _scan["SCAN_ROW_UNNAMED"]
+SCAN_ENV_BLOCK = _scan["SCAN_ENV_BLOCK"]
+TEST_HEADER = _scan["TEST_HEADER"]
+TEST_POST = _scan["TEST_POST"]
+TEST_NOT_SET = _scan["TEST_NOT_SET"]
+TEST_ERROR = _scan["TEST_ERROR"]
+TEST_OK = _scan["TEST_OK"]
+TEST_MISMATCH = _scan["TEST_MISMATCH"]
+GENERAL_NAME = _scan["GENERAL_NAME"]
+CONFIGURED_TOPICS: dict[str, str] = _scan["CONFIGURED_TOPICS"]
+
+# ---------------------------------------------------------------- web viewer API
+WEB_ERR_MUST_BE_INT = _web["ERR_MUST_BE_INT"]
+WEB_ERR_BOT_UNAVAILABLE = _web["ERR_BOT_UNAVAILABLE"]
+WEB_ERR_BAD_JSON = _web["ERR_BAD_JSON"]
+WEB_ERR_UNKNOWN_STATUS = _web["ERR_UNKNOWN_STATUS"]
+WEB_ERR_UNKNOWN_ACTION = _web["ERR_UNKNOWN_ACTION"]
+WEB_AUTH_REALM = _web["AUTH_REALM"]
+
+# ---------------------------------------------------------------- bot command descriptions
+COMMANDS: dict[str, str] = _T["commands"]
+
+# ---------------------------------------------------------------- LLM prompts
+BUG_SUMMARY_SYSTEM = _llm["BUG_SUMMARY_SYSTEM"]
+BUG_SUMMARY_USER = _llm["BUG_SUMMARY_USER"]
+
+# ---------------------------------------------------------------- developer log messages
+LOG: dict[str, dict[str, str]] = _T["log"]

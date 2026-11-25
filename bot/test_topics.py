@@ -1,4 +1,4 @@
-"""Тестовый пост «Топик <id> - <name>» во все топики из .env. Нужны только BOT_TOKEN, CHAT_ID и TOPIC_*.
+"""Test post "Topic <id> - <name>" into every topic from .env. Needs only BOT_TOKEN, CHAT_ID and TOPIC_*.
 
     python -m bot.test_topics
 """

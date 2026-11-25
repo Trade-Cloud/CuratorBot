@@ -1,8 +1,8 @@
-"""Поиск топиков в чате беты.
+"""Discovering topics in the beta chat.
 
-В Bot API нет метода «список топиков», поэтому перебираем message_thread_id подряд и пробуем отправить пост.
-ID топика = id служебного сообщения о его создании, так что это обычные числа (2, 5, 37, ...).
-Если ID не топик, Telegram отвечает ошибкой и ничего не публикует; если топик — пост остаётся в нём с его ID.
+The Bot API has no "list topics" method, so we iterate message_thread_id values and try to post.
+A topic id equals the id of its creation service message, so these are plain numbers (2, 5, 37, ...).
+If an id is not a topic, Telegram returns an error and posts nothing; if it is, the post stays with its id.
 """
 
 from __future__ import annotations
@@ -16,11 +16,13 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiogram.types import Message
 
+from .. import texts
+from ..config import CONFIG
 from ..utils.telegram import GENERAL_TOPIC
 
 log = logging.getLogger(__name__)
 
-# Названия топиков -> переменная в .env (сравнение без регистра и пробелов).
+# Topic names -> .env variable (compared case- and whitespace-insensitively).
 ENV_BY_NAME = {
     "info": "TOPIC_INFO_ID",
     "changelog": "TOPIC_CHANGELOG_ID",
@@ -47,16 +49,16 @@ class FoundTopic:
 
 
 def _topic_name(msg: Message) -> str | None:
-    """В ответе на отправку в топик reply_to_message — служебное сообщение о создании топика с его названием."""
+    """In the reply to a topic post, reply_to_message is the topic-creation service message with its name."""
     reply = msg.reply_to_message
     created = reply.forum_topic_created if reply else None
     return created.name if created else None
 
 
 def _post_text(thread_id: int, name: str | None) -> str:
-    title = f" «{escape(name)}»" if name else ""
-    general = " (General)" if thread_id == GENERAL_TOPIC else ""
-    return f"🧭 Топик{title}{general}\nmessage_thread_id: <code>{thread_id}</code>"
+    title = texts.SCAN_POST_TITLE.format(name=escape(name)) if name else ""
+    general = texts.SCAN_POST_GENERAL if thread_id == GENERAL_TOPIC else ""
+    return texts.SCAN_POST.format(title=title, general=general, thread_id=thread_id)
 
 
 async def _send(bot: Bot, chat_id: int, thread_id: int | None, text: str) -> Message | None:
@@ -64,20 +66,21 @@ async def _send(bot: Bot, chat_id: int, thread_id: int | None, text: str) -> Mes
         try:
             return await bot.send_message(chat_id, text, message_thread_id=thread_id)
         except TelegramRetryAfter as exc:
-            log.info("flood wait %ss", exc.retry_after)
+            log.info(texts.LOG["topic_scan"]["flood_wait"], exc.retry_after)
             await asyncio.sleep(exc.retry_after + 1)
         except TelegramBadRequest as exc:
-            # "message thread not found" и подобное — значит, такого топика нет.
-            log.debug("thread %s: %s", thread_id, exc.message)
+            # "message thread not found" and the like — there is no such topic.
+            log.debug(texts.LOG["topic_scan"]["thread_skip"], thread_id, exc.message)
             return None
 
 
 async def scan_topics(
     bot: Bot,
     chat_id: int,
-    max_thread_id: int = 300,
+    max_thread_id: int = CONFIG["topic_scan"]["max_thread_id"],
     known: set[int] | None = None,
-    delay: float = 0.05,
+    delay: float = CONFIG["topic_scan"]["skip_delay"],
+    post_delay: float = CONFIG["topic_scan"]["post_delay"],
 ) -> list[FoundTopic]:
     found: list[FoundTopic] = []
 
@@ -85,14 +88,14 @@ async def scan_topics(
     if general:
         found.append(FoundTopic(GENERAL_TOPIC, "General", general.message_id))
 
-    # Сначала топики, которые бот уже видел (из БД), потом перебор.
+    # First the topics the bot has already seen (from the DB), then the sweep.
     candidates = sorted(known or set()) + [i for i in range(2, max_thread_id + 1) if i not in (known or set())]
     seen_ids: set[int] = set()
     for thread_id in candidates:
         if thread_id in seen_ids or thread_id == GENERAL_TOPIC:
             continue
         seen_ids.add(thread_id)
-        # Сначала пробный пост без названия, потом правим текст, когда узнали название.
+        # First a trial post without a name, then rewrite the text once the name is known.
         msg = await _send(bot, chat_id, thread_id, _post_text(thread_id, None))
         if msg is not None:
             name = _topic_name(msg)
@@ -102,9 +105,9 @@ async def scan_topics(
                 except TelegramBadRequest:
                     pass
             found.append(FoundTopic(thread_id, name, msg.message_id))
-            log.info("found topic %s %r", thread_id, name)
-            # Ограничение Telegram — ~20 сообщений в минуту в одну группу.
-            await asyncio.sleep(3)
+            log.info(texts.LOG["topic_scan"]["found"], thread_id, name)
+            # Telegram limit — ~20 messages per minute into a single group.
+            await asyncio.sleep(post_delay)
         else:
             await asyncio.sleep(delay)
     return found
@@ -121,60 +124,58 @@ def env_snippet(found: list[FoundTopic]) -> str:
 
 def report_text(found: list[FoundTopic], max_thread_id: int) -> str:
     if not found:
-        return (
-            "Ни одного топика не нашёл. Проверь, что бот админ в чате, CHAT_ID верный и в чате включены темы."
-        )
+        return texts.SCAN_NONE
     rows = [
-        f"• <code>{t.thread_id}</code> — {escape(t.name or 'без названия')}"
-        + (f" → <code>{t.env_key}</code>" if t.env_key else "")
+        texts.SCAN_ROW.format(thread_id=t.thread_id, name=escape(t.name or texts.SCAN_ROW_UNNAMED))
+        + (texts.SCAN_ROW_ENV.format(env_key=t.env_key) if t.env_key else "")
         for t in found
     ]
-    text = f"Найдено топиков: {len(found)} (перебор до {max_thread_id})\n" + "\n".join(rows)
+    text = texts.SCAN_HEADER.format(n=len(found), max=max_thread_id) + "\n" + "\n".join(rows)
     snippet = env_snippet(found)
     if snippet:
-        text += f"\n\nДля .env:\n<pre>{escape(snippet)}</pre>"
+        text += texts.SCAN_ENV_BLOCK.format(snippet=escape(snippet))
     return text
 
 
-# ---------------------------------------------------------------- проверка топиков из .env
+# ---------------------------------------------------------------- checking the .env topics
 
-CONFIGURED_TOPICS = (
-    ("topic_info_id", "INFO"),
-    ("topic_changelog_id", "Changelog"),
-    ("topic_bugs_id", "Bug Reports"),
-    ("topic_features_id", "Feature Requests"),
-    ("topic_main_id", "Main"),
-)
+CONFIGURED_TOPICS = tuple(texts.CONFIGURED_TOPICS.items())
 
 
 async def test_configured_topics(bot: Bot, settings) -> list[str]:
-    """Кидает «Топик <id> - <name>» в каждый топик из .env. Возвращает строки отчёта."""
+    """Post "Topic <id> - <name>" into every topic from .env. Returns report lines."""
     results: list[str] = []
     for attr, label in CONFIGURED_TOPICS:
         topic_id = getattr(settings, attr)
         env_key = attr.upper()
         if topic_id is None:
-            results.append(f"⚪️ {env_key}: не задан")
+            results.append(texts.TEST_NOT_SET.format(env_key=env_key))
             continue
         try:
             msg = await bot.send_message(
-                settings.chat_id, f"Топик {topic_id} - {escape(label)}", message_thread_id=topic_id or None
+                settings.chat_id,
+                texts.TEST_POST.format(thread_id=topic_id, name=escape(label)),
+                message_thread_id=topic_id or None,
             )
         except TelegramRetryAfter as exc:
             await asyncio.sleep(exc.retry_after + 1)
             msg = await bot.send_message(
-                settings.chat_id, f"Топик {topic_id} - {escape(label)}", message_thread_id=topic_id or None
+                settings.chat_id,
+                texts.TEST_POST.format(thread_id=topic_id, name=escape(label)),
+                message_thread_id=topic_id or None,
             )
         except TelegramBadRequest as exc:
-            results.append(f"❌ {env_key}={topic_id}: {escape(exc.message)}")
+            results.append(texts.TEST_ERROR.format(env_key=env_key, thread_id=topic_id, error=escape(exc.message)))
             continue
-        # Реальное название берём из чата: оно в служебном сообщении о создании топика.
-        name = "General" if topic_id == GENERAL_TOPIC else _topic_name(msg)
+        # The real name comes from the chat: it is in the topic-creation service message.
+        name = texts.GENERAL_NAME if topic_id == GENERAL_TOPIC else _topic_name(msg)
         if name and name != label:
             try:
-                await msg.edit_text(f"Топик {topic_id} - {escape(name)}")
+                await msg.edit_text(texts.TEST_POST.format(thread_id=topic_id, name=escape(name)))
             except TelegramBadRequest:
                 pass
-        mismatch = f" (в .env это {label})" if name and name.lower() != label.lower() and topic_id else ""
-        results.append(f"✅ {env_key}={topic_id} - {escape(name or label)}{mismatch}")
+        mismatch = texts.TEST_MISMATCH.format(label=label) if name and name.lower() != label.lower() and topic_id else ""
+        results.append(
+            texts.TEST_OK.format(env_key=env_key, thread_id=topic_id, name=escape(name or label), mismatch=mismatch)
+        )
     return results

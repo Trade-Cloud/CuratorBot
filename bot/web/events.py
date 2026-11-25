@@ -1,4 +1,4 @@
-"""Шина событий для живого просмотра: бекап публикует, SSE-подписчики веб-просмотрщика читают."""
+"""Event bus for live viewing: the backup publishes, the web viewer's SSE subscribers read."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ class EventBus:
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
-                # Вкладка не успевает читать — пропускаем, она перезагрузит ленту при переподключении.
+                # The tab can't keep up — drop it; it reloads the feed on reconnect.
                 pass
 
 

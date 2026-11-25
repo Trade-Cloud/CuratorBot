@@ -1,4 +1,4 @@
-"""Модерация Main: удаляем обмен контактами и зазывы, логируем админам, мутим рецидивистов."""
+"""Main moderation: delete contact sharing and solicitation, log to admins, mute repeat offenders."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def build_router(settings: Settings, rules: ModerationRules) -> Router:
                 await backup.mark_deleted(session, message.chat.id, message.message_id)
                 bus.publish({"type": "deleted", "chat_id": message.chat.id, "message_id": message.message_id})
             except TelegramAPIError as exc:
-                log.warning("cannot delete message %s: %s", message.message_id, exc)
+                log.warning(texts.LOG["moderation"]["delete_failed"], message.message_id, exc)
 
         session.add(
             Violation(
@@ -107,10 +107,14 @@ def build_router(settings: Settings, rules: ModerationRules) -> Router:
         await notify_admins(
             bot,
             settings,
-            f"🛡 <b>Модерация</b> · {result} · {severity.name.lower()}\n"
-            f"Кто: {mention} · id <code>{user.id}</code>\n"
-            f"Найдено: {escape(reasons)}\n\n"
-            f"<blockquote>{content}</blockquote>",
+            texts.MOD_ADMIN_REPORT.format(
+                result=result,
+                severity=severity.name.lower(),
+                user=mention,
+                user_id=user.id,
+                reasons=escape(reasons),
+                content=content,
+            ),
         )
 
     async def _maybe_mute(bot: Bot, session: AsyncSession, message: Message, mention: str) -> bool:
@@ -135,7 +139,7 @@ def build_router(settings: Settings, rules: ModerationRules) -> Router:
                 until_date=datetime.now(timezone.utc) + timedelta(minutes=settings.moderation_mute_minutes),
             )
         except TelegramAPIError as exc:
-            log.warning("cannot mute %s: %s", message.from_user.id, exc)
+            log.warning(texts.LOG["moderation"]["mute_failed"], message.from_user.id, exc)
             return False
         sent = await bot.send_message(
             message.chat.id,

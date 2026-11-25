@@ -1,0 +1,80 @@
+{
+  "runtime": {
+    "timezone": "Europe/Moscow",
+    "log_level": "INFO"
+  },
+  "media": {
+    "download_concurrency": 3,
+    "max_bytes": 20971520
+  },
+  "moderation": {
+    "enabled": true,
+    "hard_action": "delete",
+    "soft_action": "log",
+    "block_mentions": true,
+    "exempt_chat_admins": true,
+    "exempt_tags": ["ADMIN", "MODER"],
+    "allowed_domains": ["trade-cloud.org"],
+    "allowed_mentions": [],
+    "mute_after": 3,
+    "mute_window_hours": 24,
+    "mute_minutes": 60,
+    "warning_ttl": 20,
+    "member_cache_ttl": 300,
+    "member_absent_cache_ttl": 30
+  },
+  "access": {
+    "bot_username": "trade_cloud_bot"
+  },
+  "reports": {
+    "attachments_required": true,
+    "require_membership": true,
+    "bug_summary_chars": 220,
+    "changelog_text_limit": 3800,
+    "field_limits": {
+      "description": 1000,
+      "steps": 2500,
+      "actual": 1500,
+      "expected": 1500,
+      "environment": 300,
+      "log": 3500,
+      "idea": 1000,
+      "problem": 1200,
+      "implementation": 1500
+    },
+    "default_buttons": {
+      "environment": [{"label": "🌐 Browser", "value": "Browser"}]
+    }
+  },
+  "group": {
+    "delete_commands": true,
+    "reply_ttl": 15
+  },
+  "pagination": {
+    "admin_page_size": 8
+  },
+  "ids": {
+    "alphabet": "ABCDEFGHJKMNPQRSTUVWXYZ23456789",
+    "length": 6
+  },
+  "topic_scan": {
+    "max_thread_id": 300,
+    "post_delay": 3.0,
+    "skip_delay": 0.05
+  },
+  "web": {
+    "enabled": true,
+    "host": "0.0.0.0",
+    "port": 8080,
+    "user": "admin",
+    "feed_limit_default": 100,
+    "feed_limit_max": 500
+  },
+  "llm": {
+    "enabled": true,
+    "server_host": "192.168.1.145",
+    "port": 8301,
+    "model": null,
+    "timeout": 20.0
+  }
+}

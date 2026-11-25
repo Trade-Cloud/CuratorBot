@@ -10,8 +10,8 @@ def test_post_link():
 
 
 def test_truncate():
-    assert truncate("коротко", 50) == "коротко"
-    out = truncate("слово " * 100, 40)
+    assert truncate("short", 50) == "short"
+    out = truncate("word " * 100, 40)
     assert len(out) <= 40 and out.endswith("…")
 
 

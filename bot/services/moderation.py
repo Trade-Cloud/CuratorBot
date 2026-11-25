@@ -1,8 +1,12 @@
-"""Поиск обмена контактами и зазывов в Main.
+"""Detecting contact sharing and solicitation in Main.
 
-Детектор — набор анализаторов с общим интерфейсом. Сейчас только правила (regex + entities Telegram),
-позже сюда же встанет анализатор на локальной LLM (см. services/llm.py) — для мягких случаев,
-которые регулярками не ловятся ("пиши мне в одну известную соцсеть").
+The detector is a set of analyzers with a shared interface. For now it is only rules (regex + Telegram
+entities); later an analyzer backed by a local LLM (see services/llm.py) will sit here too, for the soft
+cases that regexes miss ("message me on a well-known social network").
+
+NOTE: the regex patterns below intentionally contain Russian words. They are detection DATA, not prose —
+they match the Russian text people actually post in the chat. Do not translate or remove them without
+dropping the ability to catch Russian contact sharing.
 """
 
 from __future__ import annotations
@@ -17,8 +21,8 @@ from aiogram.types import Message
 
 
 class Severity(IntEnum):
-    SOFT = 1  # подозрительно: по умолчанию только лог админам
-    HARD = 2  # явный контакт/ссылка: удаляем
+    SOFT = 1  # suspicious: logged to admins only, by default
+    HARD = 2  # explicit contact/link: deleted
 
 
 @dataclass(slots=True)
@@ -35,7 +39,7 @@ class Finding:
 
 @dataclass(slots=True)
 class ModerationInput:
-    """Всё, что нужно анализаторам. Собирается из Message, но не зависит от aiogram — удобно тестировать."""
+    """Everything the analyzers need. Built from a Message but independent of aiogram — easy to test."""
 
     text: str = ""
     entities: list[dict[str, Any]] = field(default_factory=list)
@@ -56,13 +60,13 @@ class Analyzer(Protocol):
     async def analyze(self, data: ModerationInput, rules: ModerationRules) -> list[Finding]: ...
 
 
-# ---------------------------------------------------------------- правила
+# ---------------------------------------------------------------- rules
 
 _TG_LINK = re.compile(
     r"(?:https?://)?(?:www\.)?(?:t|telegram)\.(?:me|dog)/[\w+\-/]+|tg://\S+",
     re.IGNORECASE,
 )
-# "t . me / name", "т.ме/name", "t[.]me" — распространённые обходы.
+# Common obfuscations: "t . me / name", "т.ме/name", "t[.]me".
 _TG_LINK_OBFUSCATED = re.compile(
     r"(?<![\w])[tт]\s*(?:\.|\[\.\]|\(\.\)|dot|точка)\s*(?:me|ме|mе|мe)\s*/\s*\w+",
     re.IGNORECASE,
@@ -90,7 +94,7 @@ _SOFT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "messenger",
         re.compile(
-            # Длинные названия — по основе (дискорд/дискорде/дискордик), короткие — только целым словом.
+            # Long names matched by stem (дискорд/дискорде/дискордик); short ones only as whole words.
             r"\b(?:whats?app|ватс?ап|вотс?ап|вацап|viber|вайбер|discord|дискорд|skype|скайп|"
             r"wechat|вичат|instagram|инстаграм)\w*|\b(?:vk|вк|инст[ау]|signal)\b",
             re.IGNORECASE,
@@ -123,7 +127,7 @@ def _domain_allowed(url: str, allowed: set[str]) -> bool:
 
 
 def _entity_text(text: str, entity: dict[str, Any]) -> str:
-    # offset/length в UTF-16 code units
+    # offset/length are in UTF-16 code units
     encoded = text.encode("utf-16-le")
     start, length = entity.get("offset", 0) * 2, entity.get("length", 0) * 2
     return encoded[start : start + length].decode("utf-16-le", errors="ignore")
@@ -155,7 +159,7 @@ def analyze_rules(data: ModerationInput, rules: ModerationRules) -> list[Finding
     if data.via_bot:
         add("via_bot", Severity.SOFT, "via_bot")
 
-    # Telegram уже разметил ссылки/телефоны/почты — это самый надёжный сигнал.
+    # Telegram already marked up links/phones/emails — the most reliable signal.
     for ent in data.entities:
         kind = ent.get("type")
         if kind == "text_link":
@@ -181,7 +185,7 @@ def analyze_rules(data: ModerationInput, rules: ModerationRules) -> list[Finding
         if not _domain_allowed(m.group(0), rules.allowed_domains):
             add("link", Severity.HARD, m.group(0))
     text_without_emails = _EMAIL.sub(" ", text)
-    # Домены без схемы ищем в тексте, где уже вырезаны полные ссылки, чтобы не считать одно и то же дважды.
+    # Look for schemeless domains in text where full links are already stripped, to avoid double counting.
     bare_text = _URL.sub(" ", _TG_LINK.sub(" ", text_without_emails))
     for m in _BARE_DOMAIN.finditer(bare_text):
         if not _domain_allowed(m.group(0), rules.allowed_domains):

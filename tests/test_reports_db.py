@@ -1,4 +1,4 @@
-"""Создание репорта и уникальность ID на SQLite в памяти."""
+"""Report creation and id uniqueness on in-memory SQLite."""
 
 from types import SimpleNamespace
 
@@ -29,7 +29,7 @@ async def test_create_bug_with_files(session):
         session,
         kind=reports.KIND_BUG,
         user=_user(),
-        fields={"description": "Падает логин", "environment": "Браузер"},
+        fields={"description": "Login crashes", "environment": "Browser"},
         started_at=None,
         files=[FileRef("photo", "fid", "uid1"), FileRef("document", "fid2", "uid2", "log.txt")],
     )

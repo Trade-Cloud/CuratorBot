@@ -21,7 +21,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 JsonType = JSON().with_variant(JSONB(), "postgresql")
 
 
-# В SQLite (тесты) автоинкремент работает только у INTEGER PRIMARY KEY, в Postgres остаётся BIGINT.
+# In SQLite (tests) autoincrement only works on INTEGER PRIMARY KEY; in Postgres it stays BIGINT.
 BigIntPK = BigInteger().with_variant(Integer(), "sqlite")
 
 
@@ -39,11 +39,11 @@ class TimestampMixin:
     )
 
 
-# ---------------------------------------------------------------- бекап
+# ---------------------------------------------------------------- backup
 
 
 class ChatUser(Base):
-    """Последний известный профиль участника."""
+    """Last known member profile."""
 
     __tablename__ = "chat_users"
 
@@ -54,6 +54,8 @@ class ChatUser(Base):
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False)
     language_code: Mapped[str | None] = mapped_column(String(16))
     last_tag: Mapped[str | None] = mapped_column(String(64))
+    # Whether the person has ever opened the bot's private chat (for the one-time "started the bot" notice).
+    started_bot: Mapped[bool | None] = mapped_column(Boolean)
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
 
@@ -73,7 +75,7 @@ class Topic(Base):
 
 
 class RawUpdate(TimestampMixin, Base):
-    """Сырой апдейт целиком — страховка на случай, если что-то не разобрали в структуру."""
+    """The full raw update — a fallback in case something was not parsed into a structure."""
 
     __tablename__ = "raw_updates"
 
@@ -109,7 +111,7 @@ class ChatMessage(Base):
     is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
     edit_count: Mapped[int] = mapped_column(Integer, default=0)
     last_edit_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Удалённые модерацией (сам Telegram ботам удаления не присылает).
+    # Deleted by moderation (Telegram does not send deletions to bots).
     deleted_by_bot: Mapped[bool] = mapped_column(Boolean, default=False)
     raw: Mapped[dict[str, Any]]
     saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
@@ -120,7 +122,7 @@ class ChatMessage(Base):
 
 
 class MessageVersion(Base):
-    """История правок: старый и новый текст, каждая правка — отдельная строка."""
+    """Edit history: old and new text, one row per edit."""
 
     __tablename__ = "message_versions"
 
@@ -131,7 +133,7 @@ class MessageVersion(Base):
     new_text: Mapped[str | None] = mapped_column(Text)
     old_entities: Mapped[list[Any] | None]
     new_entities: Mapped[list[Any] | None]
-    # Замена медиа правкой: тип сообщения и id вложений (attachments.id) до и после.
+    # Media replaced by an edit: message type and attachment ids (attachments.id) before and after.
     old_content_type: Mapped[str | None] = mapped_column(String(32))
     new_content_type: Mapped[str | None] = mapped_column(String(32))
     old_attachments: Mapped[list[Any] | None]
@@ -144,7 +146,7 @@ class MessageVersion(Base):
 
 
 class Attachment(TimestampMixin, Base):
-    """Файл из чата или из анкеты репорта. local_path — копия на диске."""
+    """A file from the chat or from a report form. local_path is the on-disk copy."""
 
     __tablename__ = "attachments"
 
@@ -162,12 +164,12 @@ class Attachment(TimestampMixin, Base):
     local_path: Mapped[str | None] = mapped_column(String(1024))
     # pending | done | too_big | failed
     status: Mapped[str] = mapped_column(String(16), default="pending")
-    # Файл заменили правкой сообщения — в истории есть, в текущем виде сообщения нет.
+    # File replaced by a message edit — kept in history, absent from the current message state.
     replaced_by_edit: Mapped[bool | None] = mapped_column(Boolean, default=False)
     error: Mapped[str | None] = mapped_column(Text)
 
 
-# ---------------------------------------------------------------- репорты
+# ---------------------------------------------------------------- reports
 
 
 class Report(TimestampMixin, Base):
@@ -181,7 +183,7 @@ class Report(TimestampMixin, Base):
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     username: Mapped[str | None] = mapped_column(String(64))
     full_name: Mapped[str | None] = mapped_column(String(512))
-    # Поля анкеты: description/steps/actual/expected/environment/logs или idea/problem/implementation
+    # Form fields: description/steps/actual/expected/environment/logs or idea/problem/implementation
     fields: Mapped[dict[str, Any]]
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     post_chat_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -204,7 +206,7 @@ class ChangelogEntry(TimestampMixin, Base):
     post_message_id: Mapped[int | None] = mapped_column(BigInteger)
 
 
-# ---------------------------------------------------------------- модерация
+# ---------------------------------------------------------------- moderation
 
 
 class Violation(TimestampMixin, Base):
@@ -219,3 +221,40 @@ class Violation(TimestampMixin, Base):
     findings: Mapped[list[Any]]
     text: Mapped[str | None] = mapped_column(Text)
     action: Mapped[str] = mapped_column(String(32))  # logged | deleted | muted
+
+
+# ---------------------------------------------------------------- admin settings and drafts
+
+
+class AppSetting(Base):
+    """Runtime settings changed from the admin menu: notification toggles, form quick-button presets.
+    Generic key/value with an arbitrary JSON value."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[dict[str, Any]]
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, server_default=func.now(), onupdate=utcnow
+    )
+
+
+class Draft(TimestampMixin, Base):
+    """An unfinished form (bug/feature): one row per user, updated step by step.
+    Lets an admin see who started a form but never finished it."""
+
+    __tablename__ = "drafts"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(64))
+    full_name: Mapped[str | None] = mapped_column(String(512))
+    kind: Mapped[str] = mapped_column(String(16))  # bug | feature
+    fields: Mapped[dict[str, Any]]
+    files_count: Mapped[int] = mapped_column(Integer, default=0)
+    step: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | submitted | cancelled
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, server_default=func.now(), onupdate=utcnow
+    )

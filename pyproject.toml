@@ -1,7 +1,7 @@
 [project]
-name = "beta-bot"
+name = "tradecloud-curator"
 version = "0.1.0"
-description = "Telegram-бот бета-чата TradeCloud: бекап, модерация, баг-репорты, предложения, changelog"
+description = "TradeCloud Curator — beta chat Telegram bot: backup, moderation, bug reports, feature requests, changelog"
 requires-python = ">=3.12"
 
 [tool.pytest.ini_options]

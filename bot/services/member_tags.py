@@ -1,4 +1,4 @@
-"""Кого модерация не трогает: участники с тегами ADMIN/MODER (теги участников чата — Bot API 9.x)."""
+"""Who moderation leaves alone: members with ADMIN/MODER tags (chat member tags — Bot API 9.x)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,8 @@ from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import Message
 
-from ..config import Settings
+from .. import texts
+from ..config import CONFIG, Settings
 
 log = logging.getLogger(__name__)
 
@@ -28,24 +29,25 @@ def tag_matches(tag: str | None, exempt: set[str]) -> bool:
 
 
 class MemberTagResolver:
-    """get_chat_member с коротким кешем — чтобы не дёргать API на каждое сообщение."""
+    """get_chat_member with a short cache, to avoid hitting the API on every message."""
 
-    def __init__(self, ttl: float = 300.0):
-        self.ttl = ttl
+    def __init__(self, ttl: float | None = None, absent_ttl: float | None = None):
+        self.ttl = ttl if ttl is not None else CONFIG["moderation"]["member_cache_ttl"]
+        self.absent_ttl = absent_ttl if absent_ttl is not None else CONFIG["moderation"]["member_absent_cache_ttl"]
         self._cache: dict[tuple[int, int], tuple[float, MemberInfo]] = {}
 
     async def get(self, bot: Bot, chat_id: int, user_id: int) -> MemberInfo | None:
         key = (chat_id, user_id)
         cached = self._cache.get(key)
         if cached:
-            # Не участников кешируем коротко: человек мог только что вступить.
-            ttl = self.ttl if cached[1].status not in (ChatMemberStatus.LEFT, ChatMemberStatus.KICKED) else 30
+            # Cache non-members briefly: they may have just joined.
+            ttl = self.ttl if cached[1].status not in (ChatMemberStatus.LEFT, ChatMemberStatus.KICKED) else self.absent_ttl
             if time.monotonic() - cached[0] < ttl:
                 return cached[1]
         try:
             member = await bot.get_chat_member(chat_id, user_id)
         except TelegramAPIError as exc:
-            log.warning("get_chat_member(%s, %s) failed: %s", chat_id, user_id, exc)
+            log.warning(texts.LOG["member_tags"]["get_failed"], chat_id, user_id, exc)
             return None
         info = MemberInfo(
             status=str(member.status),
@@ -59,7 +61,7 @@ class MemberTagResolver:
         self._cache.pop((chat_id, user_id), None)
 
     async def is_exempt(self, message: Message, settings: Settings) -> bool:
-        # Анонимный админ или пост от имени самого чата/привязанного канала.
+        # Anonymous admin, or a post on behalf of the chat itself / a linked channel.
         if message.sender_chat is not None:
             return message.sender_chat.id == message.chat.id or bool(message.is_automatic_forward)
         user = message.from_user
@@ -67,7 +69,7 @@ class MemberTagResolver:
             return True
         if settings.is_admin(user.id):
             return True
-        # Telegram кладёт тег (или кастомный титул админа) прямо в сообщение — это основной путь.
+        # Telegram puts the tag (or an admin's custom title) right on the message — the primary path.
         if tag_matches(message.sender_tag, settings.exempt_tags):
             return True
         if user.is_bot and message.bot and user.id == message.bot.id:

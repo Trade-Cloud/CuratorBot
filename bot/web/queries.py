@@ -1,4 +1,4 @@
-"""Выборки для веб-просмотрщика: всё отдаётся уже в виде JSON-словарей."""
+"""Queries for the web viewer: everything is returned as JSON dicts."""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ from sqlalchemy import and_, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
-from ..db.models import Attachment, ChatMessage, ChatUser, MessageVersion, Report, Topic, Violation
+from ..db.models import Attachment, ChatMessage, ChatUser, Draft, MessageVersion, Report, Topic, Violation
+from ..utils.telegram import post_link
 
 CONFIGURED_NAMES = (
     ("topic_info_id", "INFO"),
@@ -17,6 +18,7 @@ CONFIGURED_NAMES = (
     ("topic_bugs_id", "Bug Reports"),
     ("topic_features_id", "Feature Requests"),
     ("topic_main_id", "Main"),
+    ("topic_logs_id", "Logs"),
 )
 
 
@@ -70,7 +72,7 @@ async def list_topics(session: AsyncSession, settings: Settings) -> list[dict[st
     result = [
         {
             "id": tid,
-            "name": names.get(tid, f"Топик {tid}"),
+            "name": names.get(tid, f"Topic {tid}"),
             "count": stats.get(tid, (0, None))[0],
             "last": _iso(stats.get(tid, (0, None))[1]),
         }
@@ -95,7 +97,7 @@ async def serialize_messages(
     ).scalars():
         attachments.setdefault(att.message_pk, []).append(_att_dict(att))
 
-    # Последняя правка — чтобы прямо в карточке показать «было: …».
+    # The latest edit — to show "was: …" right in the card.
     last_versions: dict[int, MessageVersion] = {}
     edited_pks = [r.id for r in rows if r.is_edited]
     if edited_pks:
@@ -133,7 +135,7 @@ async def serialize_messages(
     result = []
     for r in rows:
         reply = None
-        # Ответ на корневое сообщение топика — это просто «сообщение в топике», не показываем как ответ.
+        # A reply to the topic's root message is just "a message in the topic" — not shown as a reply.
         if r.reply_to_message_id and r.reply_to_message_id != r.thread_id:
             rep = replies.get((r.reply_to_chat_id or r.chat_id, r.reply_to_message_id))
             reply = {
@@ -146,7 +148,8 @@ async def serialize_messages(
                 "pk": r.id,
                 "message_id": r.message_id,
                 "thread_id": r.thread_id,
-                "topic": names.get(r.thread_id, f"Топик {r.thread_id}"),
+                "topic": names.get(r.thread_id, f"Topic {r.thread_id}"),
+                "link": post_link(r.chat_id, r.message_id, r.thread_id),
                 "date": _iso(r.date),
                 "user": _user_dict(users.get(r.user_id), r.user_id),
                 "sender_chat_id": r.sender_chat_id,
@@ -264,7 +267,7 @@ async def message_versions(session: AsyncSession, pk: int) -> list[dict[str, Any
 async def list_edits(
     session: AsyncSession, settings: Settings, *, version_id: int | None = None, limit: int = 200
 ) -> list[dict[str, Any]]:
-    """Лента правок: каждая правка + сообщение, к которому она относится."""
+    """Edit feed: each edit plus the message it belongs to."""
     stmt = (
         select(MessageVersion, ChatMessage)
         .join(ChatMessage, ChatMessage.id == MessageVersion.message_pk)
@@ -287,7 +290,8 @@ async def list_edits(
             **_version_dict(v, atts),
             "message_id": m.message_id,
             "thread_id": m.thread_id,
-            "topic": names.get(m.thread_id, f"Топик {m.thread_id}"),
+            "topic": names.get(m.thread_id, f"Topic {m.thread_id}"),
+            "link": post_link(m.chat_id, m.message_id, m.thread_id),
             "user": _user_dict(users.get(m.user_id), m.user_id),
         }
         for v, m in rows
@@ -312,15 +316,43 @@ async def list_users(session: AsyncSession, settings: Settings) -> list[dict[str
     ]
 
 
-async def list_reports(session: AsyncSession) -> list[dict[str, Any]]:
-    rows = (await session.execute(select(Report).order_by(Report.id.desc()).limit(500))).scalars()
+async def list_reports(
+    session: AsyncSession, settings: Settings | None = None, bot_username: str | None = None
+) -> list[dict[str, Any]]:
+    rows = list((await session.execute(select(Report).order_by(Report.id.desc()).limit(500))).scalars())
+    counts = dict(
+        (
+            await session.execute(
+                select(Attachment.report_id, func.count(Attachment.id))
+                .where(Attachment.report_id.is_not(None))
+                .group_by(Attachment.report_id)
+            )
+        ).all()
+    )
     return [
         {
             "id": r.public_id, "kind": r.kind, "status": r.status, "status_comment": r.status_comment,
             "user": {"id": r.user_id, "name": r.full_name, "username": r.username},
-            "fields": r.fields, "created": _iso(r.created_at),
+            "fields": r.fields, "created": _iso(r.created_at), "updated": _iso(r.updated_at),
+            "attachments": counts.get(r.id, 0),
+            "post_link": post_link(r.post_chat_id, r.post_message_id, r.post_thread_id) if r.post_chat_id and r.post_message_id else None,
+            "bot_link": f"https://t.me/{bot_username}?start=r_{r.public_id}" if bot_username else None,
         }
         for r in rows
+    ]
+
+
+async def list_drafts(session: AsyncSession) -> list[dict[str, Any]]:
+    rows = (
+        await session.execute(select(Draft).where(Draft.status == "active").order_by(Draft.updated_at.desc()))
+    ).scalars()
+    return [
+        {
+            "user": {"id": d.user_id, "name": d.full_name, "username": d.username},
+            "kind": d.kind, "fields": d.fields or {}, "files": d.files_count, "step": d.step,
+            "started": _iso(d.started_at), "updated": _iso(d.updated_at),
+        }
+        for d in rows
     ]
 
 
@@ -348,6 +380,6 @@ async def attachment_path(session: AsyncSession, att_id: int) -> tuple[str, str 
 
 
 __all__ = [
-    "get_message", "list_messages", "list_reports", "list_topics", "list_users", "list_violations",
-    "message_versions", "attachment_path", "list_edits",
+    "get_message", "list_messages", "list_reports", "list_drafts", "list_topics", "list_users",
+    "list_violations", "message_versions", "attachment_path", "list_edits",
 ]

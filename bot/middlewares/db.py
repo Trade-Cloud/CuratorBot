@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 
 class DbSessionMiddleware(BaseMiddleware):
-    """Сессия на апдейт для хендлеров: коммит при успехе, откат при исключении."""
+    """A per-update session for handlers: commit on success, roll back on exception."""
 
     def __init__(self, sessionmaker: async_sessionmaker):
         self.sessionmaker = sessionmaker

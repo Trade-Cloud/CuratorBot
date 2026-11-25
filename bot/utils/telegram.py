@@ -20,14 +20,14 @@ _background: set[asyncio.Task] = set()
 
 
 def topic_of(message: Message) -> int:
-    """ID топика сообщения. В General message_thread_id либо нет, либо это id ответа — поэтому смотрим is_topic_message."""
+    """The message's topic id. In General, message_thread_id is either absent or a reply id, so we check is_topic_message."""
     if message.is_topic_message and message.message_thread_id:
         return message.message_thread_id
     return GENERAL_TOPIC
 
 
 def thread_param(topic_id: int | None) -> int | None:
-    """Значение message_thread_id для отправки: в General его передавать не надо."""
+    """message_thread_id value for sending: in General it must not be passed."""
     return topic_id or None
 
 
@@ -45,7 +45,7 @@ def user_html_from(user: User) -> str:
 
 
 def post_link(chat_id: int, message_id: int, thread_id: int | None = None) -> str | None:
-    """Ссылка на сообщение в приватной супергруппе (t.me/c/...)."""
+    """Link to a message in a private supergroup (t.me/c/...)."""
     raw = str(chat_id)
     if not raw.startswith("-100"):
         return None
@@ -73,8 +73,8 @@ def truncate(text: str, limit: int) -> str:
 
 
 def split_html_lines(text: str, limit: int = MESSAGE_LIMIT) -> list[str]:
-    """Режет длинный текст по строкам, чтобы влезть в лимит Telegram.
-    Блоки формируем сами и теги не переносим через границу строк, поэтому резать по \\n безопасно."""
+    """Split long text by lines to fit Telegram's limit.
+    We build the blocks ourselves and never wrap tags across line boundaries, so splitting on \\n is safe."""
     chunks: list[str] = []
     current = ""
     for line in text.split("\n"):
@@ -96,7 +96,7 @@ def split_html_lines(text: str, limit: int = MESSAGE_LIMIT) -> list[str]:
 
 
 def spawn(coro) -> asyncio.Task:
-    """Фоновая задача с сильной ссылкой, чтобы её не собрал GC."""
+    """A background task with a strong reference, so the GC does not collect it."""
     task = asyncio.create_task(coro)
     _background.add(task)
     task.add_done_callback(_background.discard)
@@ -117,7 +117,7 @@ def delete_later(message: Message, delay: int) -> None:
 
 
 class KeyedLock:
-    """asyncio.Lock на ключ: апдейты обрабатываются параллельно, а альбомы приходят пачкой."""
+    """A per-key asyncio.Lock: updates are processed in parallel while albums arrive as a batch."""
 
     def __init__(self) -> None:
         self._locks: defaultdict[object, asyncio.Lock] = defaultdict(asyncio.Lock)

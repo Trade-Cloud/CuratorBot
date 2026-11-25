@@ -1,4 +1,4 @@
-"""Админские команды: changelog и статусы репортов."""
+"""Admin commands: changelog and report statuses."""
 
 from __future__ import annotations
 
@@ -16,10 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import keyboards, texts
-from ..config import Settings
+from ..config import CONFIG, Settings
 from ..db.models import ChangelogEntry, Topic
 from ..services import reports
 from ..services.llm import Summarizer
+from ..services.notify import announce
+from ..services.prefs import Prefs
 from ..services.topic_scan import report_text, scan_topics, test_configured_topics
 from ..states import ChangelogForm
 from ..utils.ids import normalize_public_id
@@ -27,21 +29,23 @@ from ..utils.telegram import fmt_dt, post_link, spawn, thread_param
 
 log = logging.getLogger(__name__)
 
-CHANGELOG_TEXT_LIMIT = 3800
+CHANGELOG_TEXT_LIMIT = CONFIG["reports"]["changelog_text_limit"]
 
 
 def changelog_post(version: str | None, body_html: str, settings: Settings) -> str:
-    title = "📝 <b>Changelog</b>" + (f" · <code>{escape(version)}</code>" if version else "")
-    return f"{title}\n\n{body_html}\n\n🕒 {fmt_dt(datetime.now(timezone.utc), settings.timezone)}"
+    title = texts.CHANGELOG_TITLE_VERSION.format(version=escape(version)) if version else texts.CHANGELOG_TITLE
+    return texts.CHANGELOG_POST.format(
+        title=title, body=body_html, dt=fmt_dt(datetime.now(timezone.utc), settings.timezone)
+    )
 
 
 def build_router(settings: Settings) -> Router:
     router = Router(name="admin")
-    # Все команды тут только для ADMIN_IDS — остальным бот молчит.
+    # Everything here is ADMIN_IDS only — the bot stays silent for everyone else.
     router.message.filter(F.from_user.id.in_(settings.admin_ids))
     router.callback_query.filter(F.from_user.id.in_(settings.admin_ids))
 
-    # ------------------------------------------------------------ changelog (в ЛС)
+    # ------------------------------------------------------------ changelog (in private chat)
 
     @router.message(Command("changelog"), F.chat.type == ChatType.PRIVATE)
     async def changelog_start(message: Message, state: FSMContext) -> None:
@@ -100,7 +104,7 @@ def build_router(settings: Settings) -> Router:
         except TelegramAPIError as exc:
             await state.set_state(ChangelogForm.confirm)
             await state.set_data(data)
-            await callback.answer(f"Не получилось опубликовать: {exc.message}", show_alert=True)
+            await callback.answer(texts.CHANGELOG_PUBLISH_FAILED.format(error=exc.message), show_alert=True)
             return
         session.add(
             ChangelogEntry(
@@ -125,15 +129,15 @@ def build_router(settings: Settings) -> Router:
             await callback.message.edit_reply_markup(reply_markup=None)
             await callback.message.answer(texts.CHANGELOG_ASK_VERSION, reply_markup=keyboards.no_version_kb())
 
-    # ------------------------------------------------------------ поиск топиков
+    # ------------------------------------------------------------ topic discovery
 
     @router.message(Command("scan_topics"), F.chat.type == ChatType.PRIVATE)
     async def scan_topics_cmd(message: Message, command: CommandObject, bot: Bot, session: AsyncSession) -> None:
-        max_id = int(command.args) if (command.args or "").isdigit() else 300
+        max_id = int(command.args) if (command.args or "").isdigit() else CONFIG["topic_scan"]["max_thread_id"]
         known = set(
             (await session.execute(select(Topic.thread_id).where(Topic.chat_id == settings.chat_id))).scalars()
         )
-        await message.answer(f"Ищу топики (перебор до {max_id}), в каждый найденный запощу его ID…")
+        await message.answer(texts.SCAN_STARTED.format(max=max_id))
 
         async def run() -> None:
             found = await scan_topics(bot, settings.chat_id, max_thread_id=max_id, known=known)
@@ -144,9 +148,9 @@ def build_router(settings: Settings) -> Router:
     @router.message(Command("test_topics"), F.chat.type == ChatType.PRIVATE)
     async def test_topics_cmd(message: Message, bot: Bot) -> None:
         lines = await test_configured_topics(bot, settings)
-        await message.answer("Тестовые посты в топики из .env:\n" + "\n".join(lines))
+        await message.answer(texts.TEST_HEADER + "\n" + "\n".join(lines))
 
-    # ------------------------------------------------------------ статусы (в ЛС или в чате)
+    # ------------------------------------------------------------ statuses (in private chat or the group)
 
     @router.message(Command("status"))
     async def set_status(
@@ -155,6 +159,7 @@ def build_router(settings: Settings) -> Router:
         bot: Bot,
         session: AsyncSession,
         summarizer: Summarizer,
+        prefs: Prefs,
     ) -> None:
         parts = (command.args or "").split(maxsplit=2)
         if len(parts) < 2 or parts[1] not in texts.STATUS_LABELS:
@@ -165,19 +170,12 @@ def build_router(settings: Settings) -> Router:
         if report is None:
             await message.answer(texts.REPORT_NOT_FOUND)
             return
-        report.status = parts[1]
-        report.status_comment = parts[2] if len(parts) > 2 else None
-        report.updated_at = datetime.now(timezone.utc)
-        await session.flush()
-        await reports.refresh_post(bot, report, settings, summarizer)
+        await reports.apply_status(bot, session, report, parts[1], parts[2] if len(parts) > 2 else None, settings, summarizer)
         label = reports.status_label(report.status)
         await message.answer(texts.STATUS_CHANGED.format(rid=report.public_id, status=label))
-        comment = f"\n{escape(report.status_comment)}" if report.status_comment else ""
-        try:
-            await bot.send_message(
-                report.user_id, texts.STATUS_CHANGED_AUTHOR.format(rid=report.public_id, status=label, comment=comment)
-            )
-        except TelegramAPIError:
-            pass
+        await announce(
+            bot, settings, prefs, "status_change",
+            texts.STATUS_CHANGE_ANNOUNCE.format(rid=report.public_id, status=label),
+        )
 
     return router

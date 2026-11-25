@@ -1,17 +1,19 @@
+# One stack = one bot instance. To run a second one "alongside" on the same server, launch it from a
+# SEPARATE directory with its own .env and set INSTANCE + its own ports there (see README → "Multiple bots side by side").
 services:
   beta_bot:
     build: .
-    container_name: beta_bot
+    container_name: ${INSTANCE:-beta_bot}
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-beta_bot}:${POSTGRES_PASSWORD:-beta_bot}@beta_bot_postgres:5432/${POSTGRES_DB:-beta_bot}
       REDIS_URL: redis://beta_bot_redis:6379/0
       MEDIA_DIR: /data/media
-    # Веб-просмотр бекапа: http://127.0.0.1:8090 (снаружи не виден).
+    # Backup web viewer: http://127.0.0.1:8090 (not reachable from outside).
     ports:
       - "127.0.0.1:${WEB_PUBLISH_PORT:-8090}:8080"
-    # На сервере LLM (llm-qwen) опубликована на хосте :8301 — достаём её через host.docker.internal.
+    # On the server the LLM (llm-qwen) is exposed on the host at :8301 — reached via host.docker.internal.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -24,15 +26,15 @@ services:
 
   beta_bot_postgres:
     image: postgres:16-alpine
-    container_name: beta_bot_postgres
+    container_name: ${INSTANCE:-beta_bot}_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-beta_bot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-beta_bot}
       POSTGRES_DB: ${POSTGRES_DB:-beta_bot}
-    # Только localhost — чтобы гонять бота с хоста (python -m bot) при локальной отладке.
+    # localhost only — so the bot can run from the host (python -m bot) during local debugging.
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:${PG_PUBLISH_PORT:-55432}:5432"
     volumes:
       - beta_bot_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -41,14 +43,14 @@ services:
       timeout: 3s
       retries: 10
 
-  # FSM (недозаполненные анкеты) переживает рестарт бота.
+  # FSM (half-filled forms) survives a bot restart.
   beta_bot_redis:
     image: redis:7-alpine
-    container_name: beta_bot_redis
+    container_name: ${INSTANCE:-beta_bot}_redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "127.0.0.1:56379:6379"
+      - "127.0.0.1:${REDIS_PUBLISH_PORT:-56379}:6379"
     volumes:
       - beta_bot_redis:/data
 

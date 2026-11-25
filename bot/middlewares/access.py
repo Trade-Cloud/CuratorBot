@@ -14,8 +14,8 @@ from ..services.member_tags import MemberTagResolver
 
 
 class PrivateAccessMiddleware(BaseMiddleware):
-    """ЛС с ботом — только для участников бета-чата и админов.
-    Остальным ничего не показываем, кроме ссылки на основной бот, где запрашивают доступ к бете."""
+    """The bot's private chat is for beta chat members and admins only.
+    Everyone else sees nothing but a link to the main bot, where beta access is requested."""
 
     def __init__(self, settings: Settings, tags: MemberTagResolver, menu: PrivateMenu):
         self.settings = settings
@@ -48,7 +48,7 @@ class PrivateAccessMiddleware(BaseMiddleware):
         if isinstance(event, CallbackQuery):
             await event.answer(texts.NO_ACCESS_SHORT, show_alert=True)
             return None
-        # Не спамим одним и тем же ответом на каждое сообщение.
+        # Don't spam the same reply on every message.
         now = time.monotonic()
         if now - self._last_notice.get(user.id, 0) > 30:
             self._last_notice[user.id] = now

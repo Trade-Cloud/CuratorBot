@@ -1,6 +1,6 @@
-"""Разовый поиск топиков без запуска бота и без БД — нужны только BOT_TOKEN и CHAT_ID.
+"""One-off topic discovery without starting the bot or a DB — needs only BOT_TOKEN and CHAT_ID.
 
-    python -m bot.scan_topics            # перебор message_thread_id до 300
+    python -m bot.scan_topics            # sweep message_thread_id up to 300
     python -m bot.scan_topics --max 1000
 """
 
@@ -18,8 +18,8 @@ from .services.topic_scan import report_text, scan_topics
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Найти топики чата беты и запостить в каждый его ID")
-    parser.add_argument("--max", type=int, default=300, help="до какого message_thread_id перебирать")
+    parser = argparse.ArgumentParser(description="Find the beta chat's topics and post each one's id into it")
+    parser.add_argument("--max", type=int, default=300, help="highest message_thread_id to sweep")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -29,7 +29,7 @@ async def main() -> None:
         found = await scan_topics(bot, settings.chat_id, max_thread_id=args.max)
     finally:
         await bot.session.close()
-    # В терминал — без HTML-тегов.
+    # To the terminal — without HTML tags.
     print(re.sub(r"</?\w+>", "", report_text(found, args.max)).replace("&lt;", "<").replace("&gt;", ">"))
 
 

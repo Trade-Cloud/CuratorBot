@@ -1,5 +1,5 @@
 import os
 
-# Settings не читаются в тестах, но на всякий случай, чтобы импорт config не падал.
+# Settings aren't read in tests, but set these just in case so importing config doesn't fail.
 os.environ.setdefault("BOT_TOKEN", "1:test")
 os.environ.setdefault("CHAT_ID", "-1001")
